@@ -48,3 +48,4 @@ logs/
 # Models (large files, download locally)
 models/
 !models/README.md
+calvin.session.sql

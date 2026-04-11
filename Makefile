@@ -15,7 +15,7 @@ logs:  ## Tail all service logs
 
 # ── Application ──────────────────────────────────────────────
 dev:  ## Run dev server with hot reload
-	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	uvicorn app.main:app --reload --host 0.0.0.0 --port 7777
 
 worker:  ## Start Celery worker
 	celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2

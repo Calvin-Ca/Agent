@@ -41,5 +41,7 @@ celery_app.conf.update(
     result_expires=3600,                  # Results expire after 1 hour
 )
 
-# Auto-discover tasks in app.tasks package
-celery_app.autodiscover_tasks(["app.tasks"])
+# Explicitly include task modules (autodiscover only finds tasks.py, not document_tasks.py)
+celery_app.conf.update(
+    include=["app.tasks.document_tasks"],
+)
