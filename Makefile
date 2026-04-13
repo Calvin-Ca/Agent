@@ -5,6 +5,7 @@ help:  ## Show this help
 
 # ── Infrastructure ───────────────────────────────────────────
 up:  ## Start all Docker services
+	bash scripts/init_dirs.sh
 	docker compose up -d
 
 down:  ## Stop all Docker services
@@ -14,11 +15,14 @@ logs:  ## Tail all service logs
 	docker compose logs -f --tail=50
 
 # ── Application ──────────────────────────────────────────────
+# GPU device (override: make dev GPU=0,1)
+GPU ?= 1
+
 dev:  ## Run dev server with hot reload
-	uvicorn app.main:app --reload --host 0.0.0.0 --port 7777
+	CUDA_VISIBLE_DEVICES=$(GPU) uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 worker:  ## Start Celery worker
-	celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+	CUDA_VISIBLE_DEVICES=$(GPU) celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
 beat:  ## Start Celery beat scheduler
 	celery -A app.tasks.celery_app beat --loglevel=info
@@ -47,6 +51,17 @@ test:  ## Run tests
 	pytest -v --cov=app --cov-report=term-missing
 
 # ── Models ───────────────────────────────────────────────────
-pull-models:  ## Pull default Ollama models
-	docker compose exec ollama ollama pull qwen2.5:14b
-	docker compose exec ollama ollama pull bge-large-zh-v1.5
+model-start:  ## Start all model services (vLLM)
+	bash models/serve.sh start
+
+model-stop:  ## Stop all model services
+	bash models/serve.sh stop
+
+model-status:  ## Show model service status
+	bash models/serve.sh status
+
+model-test:  ## Test model API endpoints
+	bash models/serve.sh test
+
+model-logs:  ## Tail model logs (usage: make model-logs SVC=llm)
+	bash models/serve.sh logs $(SVC)

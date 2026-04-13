@@ -30,7 +30,7 @@ def get_embedder():
     if _embedder is not None:
         return _embedder
 
-    with _lock:   # 锁（Lock）是“同一时间只允许一个线程进入某段代码”的机制:同一时间只能有一个线程加载模型
+    with _lock:   # 锁（Lock）是"同一时间只允许一个线程进入某段代码"的机制:同一时间只能有一个线程加载模型
         # Double-check after acquiring lock
         if _embedder is not None:
             return _embedder
@@ -78,7 +78,7 @@ def embed_texts(
 ) -> list[list[float]]:
     """Generate embeddings for a list of texts.
 
-    Dispatches to local model or Ollama based on EMBED_BACKEND config.
+    Dispatches to local / api / ollama based on EMBED_BACKEND config.
 
     Args:
         texts: List of text strings
@@ -93,7 +93,9 @@ def embed_texts(
 
     settings = get_settings()
 
-    if settings.embed_backend == "ollama":
+    if settings.embed_backend == "api":
+        return _embed_via_api(texts, batch_size)
+    elif settings.embed_backend == "ollama":
         return _embed_via_ollama(texts, batch_size)
     else:
         return _embed_local(texts, batch_size, normalize)
@@ -119,6 +121,52 @@ def _embed_local(
     result = [emb.tolist() for emb in embeddings]
     logger.debug("Embedded {} texts locally (batch_size={})", len(result), bs)
     return result
+
+
+def _embed_via_api(
+    texts: list[str],
+    batch_size: int | None = None,
+) -> list[list[float]]:
+    """Embed via OpenAI-compatible embedding API (vLLM / TGI).
+
+    调用 vLLM 等部署的 OpenAI 兼容 embedding 端点。
+    服务器启动方式: vllm serve models/embeddings/bge-m3 --port 8002 --task embed
+    """
+    import httpx
+
+    settings = get_settings()
+    bs = batch_size or settings.embed_batch_size
+    all_embeddings: list[list[float]] = []
+
+    headers = {"Content-Type": "application/json"}
+    if settings.llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+
+    for i in range(0, len(texts), bs):
+        batch = texts[i : i + bs]
+        try:
+            resp = httpx.post(
+                f"{settings.embed_api_base}/embeddings",
+                json={
+                    "model": settings.embed_model_name,
+                    "input": batch,
+                },
+                headers=headers,
+                timeout=120,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            # OpenAI format: {"data": [{"embedding": [...], "index": 0}, ...]}
+            batch_embeddings = [item["embedding"] for item in data["data"]]
+            all_embeddings.extend(batch_embeddings)
+            logger.debug("API embedded batch {}-{}/{}", i, i + len(batch), len(texts))
+        except Exception as e:
+            logger.error("API embedding failed for batch {}: {}", i, e)
+            dim = settings.milvus_dim
+            all_embeddings.extend([[0.0] * dim] * len(batch))
+
+    logger.debug("Embedded {} texts via API", len(all_embeddings))
+    return all_embeddings
 
 
 def _embed_via_ollama(
@@ -150,9 +198,6 @@ def _embed_via_ollama(
 
     logger.debug("Embedded {} texts via Ollama", len(all_embeddings))
     return all_embeddings
-
-    logger.debug("Embedded {} texts (batch_size={})", len(result), bs)
-    return result
 
 
 def unload_embedder() -> None:
