@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
-"""Test local model loading and inference.
+"""Test model API / local inference.
 
 Usage:
-    python scripts/test_models.py                  # Test all enabled models
-    python scripts/test_models.py --embed-only      # Test embedding only
-    python scripts/test_models.py --llm-only        # Test LLM only
+    python scripts/test_models.py                  # Test all
+    python scripts/test_models.py --embed-only
+    python scripts/test_models.py --llm-only
+
+VSCode 调试：直接修改下方 RUN_* 开关，F5 运行即可。
 """
+
+# ----------------------------------------------------------------
+# VSCode 调试开关 —— 直接改 True/False，无需传命令行参数
+# ----------------------------------------------------------------
+RUN_EMBED = True
+RUN_LLM   = True
+RUN_VLM   = False
+# ----------------------------------------------------------------
 
 import argparse
 import sys
@@ -32,28 +42,28 @@ def test_embedding():
 
     from app.config import get_settings
     settings = get_settings()
-    info(f"Model path: {settings.embed_model_path}")
-    info(f"Device: {settings.embed_device}")
+    info(f"Backend: {settings.embed_backend}")
+    info(f"API base: {settings.embed_api_base}" if settings.embed_backend == "api" else f"Model path: {settings.embed_model_path}")
 
-    if not Path(settings.embed_model_path).exists():
+    if settings.embed_backend == "local" and not Path(settings.embed_model_path).exists():
         fail(f"Model not found at {settings.embed_model_path}")
         return False
 
     try:
-        from app.model_service.embedding import get_embedder, embed_texts, unload_embedder
+        from app.model_service.embedding import embed_texts
 
-        # Load
-        start = time.perf_counter()
-        model = get_embedder()
-        load_time = time.perf_counter() - start
-        ok(f"Model loaded in {load_time:.1f}s")
-
-        dim = model.get_sentence_embedding_dimension()
-        ok(f"Dimension: {dim}")
-
-        if dim != settings.milvus_dim:
-            fail(f"Dimension mismatch! Model={dim}, MILVUS_DIM={settings.milvus_dim}")
-            print(f"    → Update MILVUS_DIM={dim} in your .env")
+        # API/Ollama 模式无需预加载，直接推理
+        if settings.embed_backend == "local":
+            from app.model_service.embedding import get_embedder
+            start = time.perf_counter()
+            model = get_embedder()
+            load_time = time.perf_counter() - start
+            ok(f"Model loaded in {load_time:.1f}s")
+            dim = model.get_sentence_embedding_dimension()
+            ok(f"Dimension: {dim}")
+            if dim != settings.milvus_dim:
+                fail(f"Dimension mismatch! Model={dim}, MILVUS_DIM={settings.milvus_dim}")
+                print(f"    → Update MILVUS_DIM={dim} in your .env")
 
         # Inference
         test_texts = [
@@ -82,7 +92,9 @@ def test_embedding():
         throughput = len(bench_texts) / bench_time
         ok(f"Throughput: {throughput:.0f} texts/sec (50 texts in {bench_time:.2f}s)")
 
-        unload_embedder()
+        if settings.embed_backend == "local":
+            from app.model_service.embedding import unload_embedder
+            unload_embedder()
         return True
 
     except Exception as e:
@@ -106,7 +118,7 @@ def test_llm():
         return False
 
     try:
-        from app.model_service.llm import llm_generate, unload_llm
+        from app.model_service.llm import llm_generate
 
         # Simple generation test
         start = time.perf_counter()
@@ -131,7 +143,9 @@ def test_llm():
         ok(f"Report summary in {gen_time2:.1f}s ({len(response2)} chars)")
         print(f"    {response2[:200]}...")
 
-        unload_llm()
+        if settings.llm_backend == "local":
+            from app.model_service.llm import unload_llm
+            unload_llm()
         return True
 
     except Exception as e:
@@ -243,27 +257,38 @@ def test_vlm():
 
 
 def main():
+    # 命令行参数（CLI 用）；调试时由顶部 RUN_* 开关覆盖
     parser = argparse.ArgumentParser()
     parser.add_argument("--embed-only", action="store_true")
     parser.add_argument("--llm-only", action="store_true")
     parser.add_argument("--vlm-only", action="store_true")
     args = parser.parse_args()
 
+    # 若命令行传了参数则以命令行为准，否则使用顶部调试开关
+    cli_specified = args.embed_only or args.llm_only or args.vlm_only
+    if cli_specified:
+        run_embed = args.embed_only
+        run_llm   = args.llm_only
+        run_vlm   = args.vlm_only
+    else:
+        run_embed = RUN_EMBED
+        run_llm   = RUN_LLM
+        run_vlm   = RUN_VLM
+
+    # 三个开关全为 False 时，默认跑全部
+    if not (run_embed or run_llm or run_vlm):
+        run_embed = run_llm = run_vlm = True
+
     print(f"\n{BOLD}{'=' * 50}{RESET}")
     print(f"{BOLD}  Model Verification{RESET}")
     print(f"{BOLD}{'=' * 50}{RESET}")
 
     results = {}
-
-    run_all = not (args.embed_only or args.llm_only or args.vlm_only)
-
-    if run_all or args.embed_only:
+    if run_embed:
         results["Embedding"] = test_embedding()
-
-    if run_all or args.llm_only:
+    if run_llm:
         results["LLM"] = test_llm()
-
-    if run_all or args.vlm_only:
+    if run_vlm:
         results["VLM"] = test_vlm()
 
     section("Summary")
@@ -275,7 +300,7 @@ def main():
             all_ok = False
 
     print()
-    sys.exit(0 if all_ok else 1)
+    return all_ok
 
 
 if __name__ == "__main__":
