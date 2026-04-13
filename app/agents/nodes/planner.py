@@ -16,7 +16,7 @@ def planner_node(state: AgentState) -> AgentState:
         logger.error("Planner: missing project_id")
         return {**state, "error": "缺少项目ID", "done": True}
 
-    if task_type not in ("report", "query"):
+    if task_type not in ("report", "query"):  # 如果传进来的 task_type 不是合法值，就尝试根据 user_input 自动推断
         # Try to infer from user_input
         user_input = state.get("user_input", "")
         if any(kw in user_input for kw in ("周报", "报告", "生成", "撰写")):

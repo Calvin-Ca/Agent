@@ -158,10 +158,11 @@ def _generate_via_api(
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
 
+    model_name = settings.llm_model_name or Path(settings.llm_model_path).name
     resp = httpx.post(
         f"{settings.llm_api_base}/chat/completions",
         json={
-            "model": Path(settings.llm_model_path).name,
+            "model": model_name,
             "messages": messages,
             "max_tokens": max_t,
             "temperature": temperature,

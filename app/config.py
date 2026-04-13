@@ -97,6 +97,7 @@ class Settings(BaseSettings):
     # API backend settings (vLLM / TGI)
     llm_api_base: str = "http://127.0.0.1:8001/v1"
     llm_api_key: str = ""
+    llm_model_name: str = ""  # API 调用时的模型名，为空则用 llm_model_path 的目录名
     embed_api_base: str = "http://127.0.0.1:8002/v1"  # Embedding 独立的 API 地址
     embed_model_name: str = "bge-m3"  # API 调用时的模型名（vLLM 用目录名）
 

@@ -65,21 +65,21 @@ def build_graph() -> StateGraph:
     graph = StateGraph(AgentState)
 
     # Add nodes
-    graph.add_node("planner", planner_node)
+    graph.add_node("planner", planner_node)   # 决策
     graph.add_node("data_collector", data_collector_node)
     graph.add_node("report_writer", report_writer_node)
     graph.add_node("report_reviewer", report_reviewer_node)
     graph.add_node("progress_query", progress_query_node)
 
     # Set entry point
-    graph.set_entry_point("planner")
+    graph.set_entry_point("planner") # 表示图启动时先执行 planner
 
     # Add edges
     graph.add_conditional_edges("planner", _route_after_planner)
-    graph.add_conditional_edges("data_collector", _route_after_data_collector)
-    graph.add_edge("report_writer", "report_reviewer")
+    graph.add_conditional_edges("data_collector", _route_after_data_collector) # 由函数决定"data_collector"下一步
+    graph.add_edge("report_writer", "report_reviewer") # 固定流转：写完就去审核
     graph.add_conditional_edges("report_reviewer", _route_after_reviewer)
-    graph.add_edge("progress_query", END)
+    graph.add_edge("progress_query", END) # 固定流转：到这里直接结束
 
     return graph
 
