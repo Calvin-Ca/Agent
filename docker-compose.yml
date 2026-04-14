@@ -1,6 +1,6 @@
 version: "3.9"
 
-# 本地开发基础设施
+# 先启动基础设施
 # 启动: docker compose up -d
 # 停止: docker compose down
 #
@@ -10,17 +10,13 @@ version: "3.9"
 #   Milvus    : localhost:19530
 #   MinIO     : localhost:9000  (API) / localhost:9001 (Console)
 #   Attu      : localhost:8088  (Milvus Web UI)
-#
-# 模型服务（远程，不在此文件管理）:
-#   LLM       : http://172.19.3.136:8099/v1  (vLLM Qwen3-8B)
-#   Embedding : http://172.19.3.136:8097/v1  (vLLM BGE-Large)
 
 services:
 
   # ── MySQL 8.0 ──────────────────────────────────────────────
   mysql:
     image: mysql:8.0
-    container_name: wr-mysql
+    container_name: agent-mysql
     restart: unless-stopped
     ports:
       - "3307:3306"
@@ -46,7 +42,7 @@ services:
   # ── Redis 7 ────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: wr-redis
+    container_name: agent-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -66,7 +62,7 @@ services:
   # ── Milvus 依赖：etcd + MinIO ───────────────────────────────
   etcd:
     image: quay.io/coreos/etcd:v3.5.16
-    container_name: wr-etcd
+    container_name: agent-etcd
     restart: unless-stopped
     environment:
       ETCD_AUTO_COMPACTION_MODE: revision
@@ -83,7 +79,7 @@ services:
 
   minio-storage:
     image: minio/minio:latest
-    container_name: wr-minio
+    container_name: agent-minio
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -103,7 +99,7 @@ services:
   # ── Milvus Standalone ──────────────────────────────────────
   milvus:
     image: milvusdb/milvus:v2.4.13
-    container_name: wr-milvus
+    container_name: agent-milvus
     restart: unless-stopped
     command: milvus run standalone
     ports:
@@ -124,9 +120,9 @@ services:
       retries: 5
 
   # ── Attu — Milvus 可视化管理界面 ───────────────────────────
-  attu:
+  milvus-attu:
     image: zilliz/attu:v2.4
-    container_name: wr-attu
+    container_name: agent-milvus-attu
     restart: unless-stopped
     ports:
       - "8088:3000"

@@ -1,3 +1,4 @@
+# 再把 FastAPI 项目打包成镜像
 FROM python:3.11-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \

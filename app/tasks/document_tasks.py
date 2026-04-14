@@ -20,11 +20,11 @@ from app.tasks.celery_app import celery_app
 from app.config import get_settings
 from app.db.mysql import get_session_factory
 from app.models.document import Document
-from app.pipeline.pdf_processor import extract_from_pdf
-from app.pipeline.image_processor import extract_from_image
-from app.pipeline.text_processor import extract_from_text, merge_extracted_content, clean_text
-from app.pipeline.chunker import chunk_text
-from app.pipeline.embedder import embed_and_store
+from app.perception.pdf_processor import extract_from_pdf
+from app.perception.image_processor import extract_from_image
+from app.perception.text_processor import extract_from_text, merge_extracted_content, clean_text
+from app.perception.chunker import chunk_text
+from app.perception.embedder import embed_and_store
 
 
 def _run_async(coro):
@@ -88,13 +88,13 @@ def process_document(self, document_id: str) -> dict:
 
         if file_type == "pdf":
             pdf_result = extract_from_pdf(file_path)
-            extracted_text = pdf_result["text"]
-            tables = pdf_result["tables"]
+            extracted_text = pdf_result.text
+            tables = pdf_result.tables
 
         elif file_type == "image":
             img_result = extract_from_image(file_path, use_vlm=True)
-            ocr_text = img_result["ocr_text"]
-            vlm_desc = img_result["vlm_description"]
+            ocr_text = img_result.ocr_text
+            vlm_desc = img_result.vlm_description
 
         elif file_type == "text":
             txt_result = extract_from_text(file_path)

@@ -6,6 +6,7 @@ Usage:
 """
 
 from celery import Celery
+from celery.signals import worker_init
 
 from app.config import get_settings
 
@@ -40,6 +41,13 @@ celery_app.conf.update(
     # Result
     result_expires=3600,                  # Results expire after 1 hour
 )
+
+@worker_init.connect
+def init_worker(**kwargs):
+    """Register built-in tools when Celery worker starts."""
+    from app.tools.registry import auto_discover_tools
+    auto_discover_tools()
+
 
 # Explicitly include task modules (autodiscover only finds tasks.py, not document_tasks.py)
 celery_app.conf.update(

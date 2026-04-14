@@ -18,11 +18,13 @@ def register_middleware(app: FastAPI) -> None:
     """Register all middleware on the FastAPI app."""
 
     # ── CORS ─────────────────────────────────────────────────
+    # 浏览器限制 “不同来源的网站互相访问” 的安全机制，一个域包括 “协议 + 域名 + 端口”，有一个不同就是跨域
+    # 例如 http://localhost:3000 和 http://localhost:8000
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
+        allow_origins=["*"],    # 允许哪些前端，只有这里写的前端，才能访问你的后端：所有来源（开发用）
+        allow_credentials=True, # 是否允许 cookie
+        allow_methods=["*"],    # 允许的方法：GET / POST 等获取/发布等
         allow_headers=["*"],
     )
 

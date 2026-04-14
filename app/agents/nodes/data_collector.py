@@ -5,12 +5,7 @@ from __future__ import annotations
 from loguru import logger
 
 from app.agents.state import AgentState
-from app.agents.tools.db_query import (
-    get_project_info,
-    get_recent_progress,
-    get_recent_reports,
-)
-from app.agents.tools.vector_search import search_documents
+from app.tools.registry import tool_registry
 
 
 def data_collector_node(state: AgentState) -> AgentState:
@@ -21,12 +16,14 @@ def data_collector_node(state: AgentState) -> AgentState:
     logger.info("DataCollector: gathering data for project {}", project_id)
 
     # 1. Project info from MySQL
-    project_info = get_project_info(project_id)
-    if not project_info:
+    project_info_result = tool_registry.execute("db.get_project_info", project_id=project_id)
+    if not project_info_result.success:
         return {**state, "error": f"项目不存在: {project_id}", "done": True}
+    project_info = project_info_result.data
 
     # 2. Recent progress records
-    progress_records = get_recent_progress(project_id, weeks=4)
+    progress_result = tool_registry.execute("db.get_recent_progress", project_id=project_id, weeks=4)
+    progress_records = progress_result.data if progress_result.success else []
 
     # 3. Search relevant documents from Milvus
     if task_type == "query":
@@ -38,14 +35,18 @@ def data_collector_node(state: AgentState) -> AgentState:
 
     documents_text = []
     try:
-        documents_text = search_documents(query_text, project_id, top_k=8)
+        vector_result = tool_registry.execute(
+            "vector.search_documents", query=query_text, project_id=project_id, top_k=8,
+        )
+        documents_text = vector_result.data if vector_result.success else []
     except Exception as e:
         logger.warning("Vector search failed (non-fatal): {}", e)
 
     # 4. Previous reports (for report generation context)
     prev_reports = []
     if task_type == "report":
-        prev_reports = get_recent_reports(project_id, limit=2)
+        reports_result = tool_registry.execute("db.get_recent_reports", project_id=project_id, limit=2)
+        prev_reports = reports_result.data if reports_result.success else []
 
     logger.info(
         "DataCollector: project='{}', progress={}, docs={}, prev_reports={}",

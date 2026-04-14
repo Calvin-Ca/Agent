@@ -1,3 +1,14 @@
+"""
+前端连接 /ws/report 这个 WebSocket 接口，发送项目 ID 和登录 token，后端会把报告内容一段一段实时返回；
+生成完发 done，出错发 error。
+Socket：网络通信的“插座”，程序通过 socket → 数据才能在网络上传输
+一个 socket 连接，本质由 3 个东西确定：IP：机器地址，Port：端口（进程入口），Protocol：协议（TCP / UDP）协议
+WebSocket：建立在 Web 上的一种长期保持连接的通信协议
+普通网页请求（http请求-响应模式），特点是一问一答
+但Websocket是：浏览器先发起一次升级请求，连接建立后，不断开，浏览器和服务端可以随时主动发消息
+WebSocket 很适合“实时更新”场景：AI 对话流式输出、聊天室、私信聊天、日志实时展示...
+"""
+
 """WebSocket endpoint for streaming report generation.
 
 Client connects, sends project_id + token, receives report tokens in real-time.
@@ -37,7 +48,7 @@ async def ws_report_stream(ws: WebSocket):
     await ws.accept()
 
     try:
-        # 1. Receive init message with auth token and project_id
+        # 1. Receive init message from frontend with auth token and project_id
         init_raw = await asyncio.wait_for(ws.receive_text(), timeout=10)
         init_data = json.loads(init_raw)
 
@@ -51,7 +62,7 @@ async def ws_report_stream(ws: WebSocket):
 
         # 2. Verify token
         try:
-            payload = decode_access_token(token)
+            payload = decode_access_token(token) # token 解码后的字典（dict）
             user_id = payload.get("sub", "")
         except Exception:
             await _send(ws, "error", "token 无效或已过期")
@@ -59,7 +70,7 @@ async def ws_report_stream(ws: WebSocket):
             return
 
         # 3. Verify user exists
-        factory = get_session_factory()
+        factory = get_session_factory()     # 创建数据库会话
         async with factory() as db:
             user = await user_crud.get(db, id=user_id)
             if user is None:
@@ -67,7 +78,7 @@ async def ws_report_stream(ws: WebSocket):
                 await ws.close()
                 return
 
-        await _send(ws, "status", "开始生成周报...")
+        await _send(ws, "status", "开始生成周报...")  # 给前端发一条状态消息
 
         # 4. Run report generation in background thread
         from app.services.report_service import generate_report_sync

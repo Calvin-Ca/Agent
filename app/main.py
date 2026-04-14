@@ -4,6 +4,7 @@ Lifespan manages startup/shutdown of:
 - MySQL async engine
 - Redis connection pool
 - Milvus connection
+- Tool registry (auto-discover built-in tools)
 """
 
 from __future__ import annotations
@@ -45,6 +46,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("Milvus not available at startup (non-fatal): {}", e)
 
+    # Register built-in tools
+    from app.tools.registry import auto_discover_tools
+    auto_discover_tools()
+
     logger.info("All services ready ✓")
 
     yield
@@ -64,16 +69,22 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        description="AI agent for automated weekly project report generation",
-        docs_url="/docs" if settings.debug else None,
+        description="Agent",
+        docs_url="/docs" if settings.debug else None,  # 只有 debug=True 时才开放 Swagger 文档
         redoc_url="/redoc" if settings.debug else None,
-        lifespan=lifespan,
+        lifespan=lifespan, # 应用启动和关闭时执行的生命周期逻辑，比如初始化数据库、缓存、连接池等
     )
 
     # Register exception handlers
     register_exception_handlers(app)
 
-    # Register middleware
+    # Register middleware 
+    # 中间件 = 在请求和响应之间“拦截并处理”的一层代码，可以
+    # 日志记录：记录每个请求：谁访问了、访问了什么
+    # 鉴权：检查 token 是否合法
+    # 统一异常处理
+    # 跨域（CORS）：允许前端访问后端
+    # 性能统计：计算接口耗时
     register_middleware(app)
 
     # ── Health check ─────────────────────────────────────────

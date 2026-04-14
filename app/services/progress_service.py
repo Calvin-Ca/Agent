@@ -1,8 +1,12 @@
-"""Progress service — orchestrate query agent for natural language questions."""
+"""Progress service — orchestrate query agent for natural language questions.
+
+NOTE: Now delegates to app.orchestration.query_workflow.
+      Kept for backward compatibility with API layer.
+"""
 
 from __future__ import annotations
 
-from loguru import logger
+from app.orchestration.query_workflow import query_workflow
 
 
 def query_progress_sync(project_id: str, user_id: str, question: str) -> dict:
@@ -11,11 +15,4 @@ def query_progress_sync(project_id: str, user_id: str, question: str) -> dict:
     Returns:
         {"success": bool, "answer": str, "error": str | None}
     """
-    from app.agents.graph import run_query_agent
-
-    result = run_query_agent(project_id=project_id, user_id=user_id, question=question)
-
-    if not result["success"]:
-        logger.warning("Query failed: {}", result["error"])
-
-    return result
+    return query_workflow.run(project_id=project_id, user_id=user_id, question=question)
