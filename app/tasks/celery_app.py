@@ -43,5 +43,9 @@ celery_app.conf.update(
 
 # Explicitly include task modules (autodiscover only finds tasks.py, not document_tasks.py)
 celery_app.conf.update(
-    include=["app.tasks.document_tasks"],
+    include=[
+        "app.tasks.document_tasks",
+        "app.tasks.report_tasks",
+        "app.tasks.scheduled",
+    ],
 )

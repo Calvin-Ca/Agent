@@ -85,18 +85,11 @@ def create_app() -> FastAPI:
     from app.api.v1.router import v1_router
     app.include_router(v1_router, prefix=settings.api_v1_prefix)
 
+    from app.api.websocket import router as ws_router
+    app.include_router(ws_router)
+
     return app
 
 
 # Module-level app instance for uvicorn
 app = create_app()
-
-import uvicorn
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "app.main:app",   # 等价于命令里的 app.main:app
-        host="0.0.0.0",
-        port=7777,
-        reload=True
-    )
