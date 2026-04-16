@@ -52,10 +52,10 @@ def test_report(project_id: str):
     print(f"\n{BOLD}Report Generation Test{RESET}")
     print("─" * 50)
 
-    from app.agents.graph import run_report_agent
+    from app.orchestration.report_workflow import report_workflow
 
     start = time.perf_counter()
-    result = run_report_agent(project_id=project_id, user_id="test_user")
+    result = report_workflow.run(project_id=project_id, user_id="test_user")
     elapsed = time.perf_counter() - start
 
     if result["success"]:
@@ -80,10 +80,10 @@ def test_query(project_id: str, question: str):
     print("─" * 50)
     print(f"  {CYAN}→{RESET} Question: {question}")
 
-    from app.agents.graph import run_query_agent
+    from app.orchestration.query_workflow import query_workflow
 
     start = time.perf_counter()
-    result = run_query_agent(project_id=project_id, user_id="test_user", question=question)
+    result = query_workflow.run(project_id=project_id, user_id="test_user", question=question)
     elapsed = time.perf_counter() - start
 
     if result["success"]:

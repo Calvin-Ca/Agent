@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.pipeline.chunker import chunk_text, Chunk
+from app.perception.chunker import chunk_text, Chunk
 
 
 class TestChunker:

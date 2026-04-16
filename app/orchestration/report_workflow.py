@@ -16,7 +16,7 @@ from langgraph.graph import StateGraph, END
 from loguru import logger
 
 from app.agents.state import AgentState
-from app.agents.nodes.planner import planner_node
+from app.agents.planner.default_planner import planner_node
 from app.agents.nodes.data_collector import data_collector_node
 from app.agents.nodes.report_writer import report_writer_node
 from app.agents.nodes.report_reviewer import report_reviewer_node

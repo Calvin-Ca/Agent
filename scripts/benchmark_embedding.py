@@ -21,7 +21,7 @@ def main() -> None:
     args = parser.parse_args()
 
     from app.config import get_settings
-    from app.pipeline.embedder import embed_texts
+    from app.perception.embedder import embed_texts
 
     settings = get_settings()
     print(f"Model: {settings.ollama_embed_model}")

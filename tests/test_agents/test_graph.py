@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.agents.state import AgentState
-from app.agents.nodes.planner import planner_node
+from app.agents.planner.default_planner import planner_node
 
 
 class TestPlanner:
