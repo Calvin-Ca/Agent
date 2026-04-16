@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # 自动从环境变量或.env文件中加载下列字段，没有则使用默认值
     # ── App ──────────────────────────────────────────────────
-    app_name: str = "smart-weekly-report"
+    app_name: str = "agent"
     app_env: str = "development"
     debug: bool = True
     secret_key: str = "change-me-to-a-random-64-char-string"
@@ -70,41 +70,26 @@ class Settings(BaseSettings):
     milvus_collection: str = "doc_embeddings"
     milvus_dim: int = 1024  # BGE-large-zh output dim
 
-    # ── Models ────────────────────────────────────────────────
-    model_root: str = "models"  # project-relative, gitignored
-
-    # Embedding
-    embed_model_path: str = "models/embeddings/bge-large-zh-v1.5"
-    embed_device: str = "cuda"    # cuda / cpu
-    embed_batch_size: int = 32
-
-    # LLM
-    llm_model_path: str = "models/llm/qwen2.5-14b-instruct"
-    llm_device: str = "cuda"
+    # ── 模型服务 — ollama | api(vLLM) ──────────────────────────
+    backend: str = "vllm"  # 统一后端选择: vllm | ollama
     llm_max_tokens: int = 2048
 
-    # VLM (optional)
-    vlm_model_path: str = "models/vlm/qwen2-vl-7b-instruct"
-    vlm_enabled: bool = False
-
-    # Backend: "local" | "api" | "ollama"
-    #   local  = transformers / sentence-transformers 直接加载
-    #   api    = vLLM / TGI OpenAI-compatible endpoint
-    #   ollama = Ollama HTTP API
-    llm_backend: str = "local"
-    embed_backend: str = "local"  # local | api | ollama
-
-    # API backend settings (vLLM / TGI)
-    llm_api_base: str = "http://127.0.0.1:8001/v1"
-    llm_api_key: str = ""
-    llm_model_name: str = ""  # API 调用时的模型名，为空则用 llm_model_path 的目录名
-    embed_api_base: str = "http://127.0.0.1:8002/v1"  # Embedding 独立的 API 地址
-    embed_model_name: str = "bge-m3"  # API 调用时的模型名（vLLM 用目录名）
-
-    # Ollama backend settings
+    # Ollama
     ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_llm_model: str = "qwen2.5:14b"
-    ollama_embed_model: str = "bge-large-zh-v1.5"
+    ollama_llm_model: str = "qwen3-8b"
+    ollama_embed_model: str = "bge-large"
+    ollama_vlm_model: str = "llava"
+
+    # vLLM API
+    llm_api_base: str = "http://127.0.0.1:8099/v1"
+    llm_api_key: str = ""
+    llm_model_name: str = "/model"
+    embed_api_base: str = "http://127.0.0.1:8097/v1"
+    embed_model_name: str = "/model"
+
+    # VLM（可选）
+    vlm_enabled: bool = False
+    vlm_model_name: str = ""
 
     # ── MinIO ────────────────────────────────────────────────
     minio_endpoint: str = "127.0.0.1:9000"

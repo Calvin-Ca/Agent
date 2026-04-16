@@ -12,6 +12,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
+import uvicorn
 from fastapi import FastAPI
 from loguru import logger
 
@@ -46,7 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("Milvus not available at startup (non-fatal): {}", e)
 
-    # Register built-in tools
+    # Register built-in tools，注册内置工具
     from app.tools.registry import auto_discover_tools
     auto_discover_tools()
 
@@ -99,8 +100,16 @@ def create_app() -> FastAPI:
     from app.api.websocket import router as ws_router
     app.include_router(ws_router)
 
+    # ── File Chat 模块（独立业务，无需鉴权）────────────────
+    from app.api.file_chat.router import file_chat_router
+    app.include_router(file_chat_router, prefix="/file_chat")
+
     return app
 
 
 # Module-level app instance for uvicorn
 app = create_app()
+
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

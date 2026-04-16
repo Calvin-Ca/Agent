@@ -45,6 +45,9 @@ Thumbs.db
 *.log
 logs/
 
+# Questions
+question/
+
 # Models (large files, download locally)
 models/
 !models/README.md

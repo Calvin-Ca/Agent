@@ -1,15 +1,9 @@
-"""
-前端连接 /ws/report 这个 WebSocket 接口，发送项目 ID 和登录 token，后端会把报告内容一段一段实时返回；
-生成完发 done，出错发 error。
-Socket：网络通信的“插座”，程序通过 socket → 数据才能在网络上传输
-一个 socket 连接，本质由 3 个东西确定：IP：机器地址，Port：端口（进程入口），Protocol：协议（TCP / UDP）协议
-WebSocket：建立在 Web 上的一种长期保持连接的通信协议
-普通网页请求（http请求-响应模式），特点是一问一答
-但Websocket是：浏览器先发起一次升级请求，连接建立后，不断开，浏览器和服务端可以随时主动发消息
-WebSocket 很适合“实时更新”场景：AI 对话流式输出、聊天室、私信聊天、日志实时展示...
-"""
-
 """WebSocket endpoint for streaming report generation.
+
+前端连接 `/ws/report` 这个 WebSocket 接口，发送项目 ID 和登录 token，
+后端会把报告内容一段一段实时返回；生成完发 done，出错发 error。
+
+WebSocket 很适合实时更新场景：AI 对话流式输出、聊天室、日志实时展示等。
 
 Client connects, sends project_id + token, receives report tokens in real-time.
 
