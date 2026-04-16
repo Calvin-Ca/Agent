@@ -108,3 +108,12 @@ def _vlm_describe(file_path: Path) -> str:
     except Exception as e:
         logger.warning("VLM description failed for {}: {}", file_path.name, e)
         return ""
+
+
+if __name__ == "__main__":
+    file_path = r"storage\uploads\2d_component\出入口控制系统00.png"
+    if not file_path:
+        raise SystemExit("Please set 'file_path' in image_processor.py before running.")
+
+    result = extract_from_image(file_path)
+    print(result)

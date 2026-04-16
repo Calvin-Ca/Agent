@@ -105,3 +105,12 @@ def merge_extracted_content(
         parts.append(f"[图片描述]\n{vlm_description}")
 
     return "\n\n".join(parts)
+
+
+if __name__ == "__main__":
+    file_path = r""
+    if not file_path:
+        raise SystemExit("Please set 'file_path' in text_processor.py before running.")
+
+    result = TextProcessor().extract(file_path)
+    print(result)

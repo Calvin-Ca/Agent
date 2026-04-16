@@ -82,3 +82,12 @@ def extract_from_pdf(file_path: str | Path) -> ExtractionResult:
         logger.warning("No text from {} — may be scanned PDF, consider OCR", file_path.name)
 
     return result
+
+
+if __name__ == "__main__":
+    pdf_path = r""
+    if not pdf_path:
+        raise SystemExit("Please set 'pdf_path' in pdf_processor.py before running.")
+
+    result = extract_from_pdf(pdf_path)
+    print(result)
