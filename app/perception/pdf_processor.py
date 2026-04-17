@@ -11,6 +11,7 @@ from pathlib import Path
 from loguru import logger
 
 from app.perception.base import ExtractionResult
+from app.perception.ocr import ocr_extract
 
 
 class PdfProcessor:
@@ -78,10 +79,52 @@ def extract_from_pdf(file_path: str | Path) -> ExtractionResult:
     except Exception as e:
         logger.warning("pdfplumber failed for {}: {}", file_path.name, e)
 
+    # ── OCR fallback for scanned PDFs ────────────────────────
     if not result.text.strip():
-        logger.warning("No text from {} — may be scanned PDF, consider OCR", file_path.name)
+        logger.info("No selectable text in {} — running OCR on each page", file_path.name)
+        result.ocr_text = _ocr_pdf_pages(file_path)
 
     return result
+
+
+def _ocr_pdf_pages(file_path: Path) -> str:
+    """Render each PDF page to an image and run OCR via app.perception.ocr."""
+    try:
+        import fitz  # PyMuPDF
+
+        doc = fitz.open(str(file_path))
+        page_texts: list[str] = []
+        for i, page in enumerate(doc):
+            pix = page.get_pixmap(dpi=150)
+            img_bytes = pix.tobytes("png")
+
+            # Write to a temp file so ocr_extract can open it
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                tmp.write(img_bytes)
+                tmp_path = tmp.name
+
+            text = ocr_extract(tmp_path)
+
+            import os
+            os.unlink(tmp_path)
+
+            if text:
+                page_texts.append(text)
+                logger.debug("OCR page {}/{}: {} chars", i + 1, len(doc), len(text))
+
+        doc.close()
+        combined = "\n\n".join(page_texts)
+        if combined:
+            logger.info("PDF OCR: {} chars from {}", len(combined), file_path.name)
+        return combined
+
+    except ImportError:
+        logger.warning("PyMuPDF not installed — cannot render PDF pages for OCR")
+        return ""
+    except Exception as e:
+        logger.warning("PDF OCR failed for {}: {}", file_path.name, e)
+        return ""
 
 
 if __name__ == "__main__":

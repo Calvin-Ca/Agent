@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     vlm_enabled: bool = False
     vlm_model_name: str = ""
 
+    # ── PaddleOCR Server ─────────────────────────────────────
+    paddleocr_api_url: str = ""  # e.g. http://127.0.0.1:8868/predict/ocr_system; empty = disabled
+
     # ── MinIO ────────────────────────────────────────────────
     minio_endpoint: str = "127.0.0.1:9000"
     minio_access_key: str = "minioadmin"
