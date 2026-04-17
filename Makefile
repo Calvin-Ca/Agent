@@ -49,19 +49,3 @@ fmt:  ## Format with ruff
 
 test:  ## Run tests
 	pytest -v --cov=app --cov-report=term-missing
-
-# ── Models ───────────────────────────────────────────────────
-model-start:  ## Start all model services (vLLM)
-	bash models/serve.sh start
-
-model-stop:  ## Stop all model services
-	bash models/serve.sh stop
-
-model-status:  ## Show model service status
-	bash models/serve.sh status
-
-model-test:  ## Test model API endpoints
-	bash models/serve.sh test
-
-model-logs:  ## Tail model logs (usage: make model-logs SVC=llm)
-	bash models/serve.sh logs $(SVC)
