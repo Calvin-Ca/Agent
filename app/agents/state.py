@@ -52,6 +52,7 @@ class AgentState(TypedDict, total=False):
     documents_text: list[str]
     image_descriptions: list[str]
     sql_results: list[dict]
+    latest_video_info: dict  # MinIO 最新视频元信息，None 表示无视频
 
     # Generation
     report_draft: str

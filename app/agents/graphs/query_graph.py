@@ -1,9 +1,9 @@
-"""Natural language query workflow — LangGraph state machine.
+"""Natural language query graph — LangGraph state machine.
 
 Flow: planner → data_collector → progress_query → END
 
 Usage:
-    from app.orchestration.query_workflow import query_workflow
+    from app.agents.graphs.query_graph import query_workflow
 
     result = query_workflow.run(project_id="xxx", user_id="yyy", question="进度如何？")
 """
@@ -14,10 +14,10 @@ from langgraph.graph import StateGraph, END
 from loguru import logger
 
 from app.agents.state import AgentState
-from app.agents.planner.default_planner import planner_node
+from app.agents.nodes.planner import planner_node
 from app.agents.nodes.data_collector import data_collector_node
 from app.agents.nodes.progress_query import progress_query_node
-from app.orchestration.router import route_after_planner, route_after_data_collector
+from app.agents.graphs.edges import route_after_planner, route_after_data_collector
 
 
 class QueryWorkflow:
@@ -78,6 +78,7 @@ class QueryWorkflow:
             "documents_text": [],
             "image_descriptions": [],
             "sql_results": [],
+            "latest_video_info": None,
             "report_draft": "",
             "report_title": "",
             "report_summary": "",

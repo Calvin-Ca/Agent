@@ -1,9 +1,9 @@
-"""Report generation workflow — LangGraph state machine.
+"""Report generation graph — LangGraph state machine.
 
-Flow: planner → data_collector → report_writer → report_reviewer → END
+Flow: planner → data_collector → report_writer → reviewer → END
 
 Usage:
-    from app.orchestration.report_workflow import report_workflow
+    from app.agents.graphs.report_graph import report_workflow
 
     result = report_workflow.run(project_id="xxx", user_id="yyy")
 """
@@ -16,11 +16,11 @@ from langgraph.graph import StateGraph, END
 from loguru import logger
 
 from app.agents.state import AgentState
-from app.agents.planner.default_planner import planner_node
+from app.agents.nodes.planner import planner_node
 from app.agents.nodes.data_collector import data_collector_node
 from app.agents.nodes.report_writer import report_writer_node
-from app.agents.nodes.report_reviewer import report_reviewer_node
-from app.orchestration.router import (
+from app.agents.nodes.reviewer import report_reviewer_node
+from app.agents.graphs.edges import (
     route_after_planner,
     route_after_data_collector,
     route_after_reviewer,

@@ -12,6 +12,9 @@ This is the async pipeline triggered after file upload:
 from __future__ import annotations
 
 import asyncio
+import os
+import tempfile
+from pathlib import Path
 
 from loguru import logger
 from sqlalchemy import text as sql_text, update
@@ -19,12 +22,13 @@ from sqlalchemy import text as sql_text, update
 from app.tasks.celery_app import celery_app
 from app.config import get_settings
 from app.db.mysql import get_session_factory
+from app.db.minio import sync_download_file
 from app.models.document import Document
-from app.perception.pdf_processor import extract_from_pdf
-from app.perception.image_processor import extract_from_image
-from app.perception.text_processor import extract_from_text, merge_extracted_content, clean_text
-from app.perception.chunker import chunk_text
-from app.perception.embedder import embed_and_store
+from app.pipeline.pdf_processor import extract_from_pdf
+from app.pipeline.image_processor import extract_from_image
+from app.pipeline.text_processor import extract_from_text, merge_extracted_content, clean_text
+from app.pipeline.chunker import chunk_text
+from app.pipeline.embedder import embed_and_store
 
 
 def _run_async(coro):
@@ -72,32 +76,43 @@ def process_document(self, document_id: str) -> dict:
         logger.error("Document {} not found in DB", document_id)
         return {"status": "error", "message": "document not found"}
 
-    file_path = doc_meta["file_path"]
+    minio_key = doc_meta["file_path"]
     file_type = doc_meta["file_type"]
     project_id = doc_meta["project_id"]
 
     # Mark as processing
     _run_async(_update_document(document_id, process_status=1, process_message="处理中..."))
 
+    # Determine temp file suffix from original key
+    suffix = Path(minio_key).suffix or f".{file_type}"
+    tmp_path = None
+
     try:
-        # 2. Extract content based on file type
+        # 2. Download from MinIO to a temporary local file
+        file_bytes = sync_download_file(minio_key)
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = tmp.name
+        logger.info("Downloaded {} ({} bytes) from MinIO → {}", minio_key, len(file_bytes), tmp_path)
+
+        # 3. Extract content based on file type
         extracted_text = ""
         tables = []
         ocr_text = ""
         vlm_desc = ""
 
         if file_type == "pdf":
-            pdf_result = extract_from_pdf(file_path)
+            pdf_result = extract_from_pdf(tmp_path)
             extracted_text = pdf_result.text
             tables = pdf_result.tables
 
         elif file_type == "image":
-            img_result = extract_from_image(file_path, use_vlm=True)
+            img_result = extract_from_image(tmp_path, use_vlm=True)
             ocr_text = img_result.ocr_text
             vlm_desc = img_result.vlm_description
 
         elif file_type == "text":
-            txt_result = extract_from_text(file_path)
+            txt_result = extract_from_text(tmp_path)
             extracted_text = txt_result["text"]
 
         else:
@@ -152,6 +167,10 @@ def process_document(self, document_id: str) -> dict:
             pass
 
         return {"status": "error", "message": str(e)}
+
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 async def _get_document(doc_id: str) -> dict | None:

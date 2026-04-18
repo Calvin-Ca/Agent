@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Form
 
 from app.api.deps import CurrentUser, DBSession
-from app.config import get_settings
 from app.core.exceptions import BizError, NotFoundError
 from app.core.response import R
 from app.crud.document import document_crud
 from app.crud.project import project_crud
+from app.db import minio
 from app.models.document import Document
 from app.schemas.upload import UploadOut
 
@@ -62,19 +61,16 @@ async def upload_file(
     if existing:
         return R.ok(data=UploadOut.model_validate(existing), message="文件已存在（去重）")
 
-    # 5. Save to local storage (MinIO integration in production)
-    settings = get_settings()
-    save_dir = settings.upload_dir / project_id
-    save_dir.mkdir(parents=True, exist_ok=True)
-    save_path = save_dir / f"{content_hash[:16]}_{file.filename}"
-    save_path.write_bytes(content)
+    # 5. Upload to MinIO
+    minio_key = f"uploads/{project_id}/{content_hash[:16]}_{file.filename}"
+    await minio.upload_file(minio_key, content, content_type)
 
     # 6. Create DB record
     doc = Document(
         project_id=project_id,
         filename=file.filename or "unnamed",
         file_type=file_type,
-        file_path=str(save_path),
+        file_path=minio_key,  # MinIO object key
         file_size=len(content),
         content_hash=content_hash,
         process_status=0,  # pending

@@ -15,6 +15,7 @@ def progress_query_node(state: AgentState) -> AgentState:
     project_info = state.get("project_info", {})
     progress_records = state.get("progress_records", [])
     documents_text = state.get("documents_text", [])
+    latest_video_info = state.get("latest_video_info")
 
     if not user_input:
         return {**state, "error": "缺少查询问题", "done": True}
@@ -26,6 +27,7 @@ def progress_query_node(state: AgentState) -> AgentState:
         project_info=project_info,
         progress_records=progress_records,
         documents_text=documents_text,
+        latest_video_info=latest_video_info,
     )
 
     try:

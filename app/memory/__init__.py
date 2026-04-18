@@ -1,9 +1,9 @@
-"""Layer 7: Memory — unified abstraction over structured (MySQL), vector (Milvus), and cache (Redis) stores.
+"""Memory system — structured (MySQL), long-term (Milvus), short-term (Redis).
 
 Usage:
-    from app.memory import unified_memory
+    from app.memory.manager import memory_manager
 
-    info = unified_memory.structured.get_project_info(project_id)
-    chunks = unified_memory.vector.search(query, project_id)
-    cached = await unified_memory.cache.get(key)
+    info = memory_manager.structured.get_project_info(project_id)
+    chunks = memory_manager.long_term.search(query, project_id)
+    cached = await memory_manager.short_term.get(key)
 """

@@ -100,10 +100,6 @@ def create_app() -> FastAPI:
     from app.api.websocket import router as ws_router
     app.include_router(ws_router)
 
-    # ── File Chat 模块（独立业务，无需鉴权）────────────────
-    from app.api.file_chat.router import file_chat_router
-    app.include_router(file_chat_router, prefix="/file_chat")
-
     return app
 
 

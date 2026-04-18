@@ -169,9 +169,13 @@ QUERY_PROMPT = """用户问题：{question}
 ## 相关文档内容
 {documents_text}
 
+## 最新进度视频
+{video_text}
+
 ---
 
-请根据以上信息回答用户的问题。回答要简洁准确，引用具体数据。"""
+请根据以上信息回答用户的问题。回答要简洁准确，引用具体数据。
+如果有视频链接，请在回答中附上，方便用户查看现场情况。"""
 
 
 def build_query_prompt(
@@ -179,6 +183,7 @@ def build_query_prompt(
     project_info: dict,
     progress_records: list[dict],
     documents_text: list[str],
+    latest_video_info: dict | None = None,
 ) -> str:
     """Build the query prompt."""
     if progress_records:
@@ -197,6 +202,17 @@ def build_query_prompt(
     else:
         docs_text = "（暂无相关文档）"
 
+    if latest_video_info:
+        video_text = (
+            f"- 文件名：{latest_video_info['filename']}\n"
+            f"- 拍摄/上传时间：{latest_video_info.get('last_modified', '未知')}\n"
+            f"- 文件大小：{latest_video_info['size'] // 1024} KB\n"
+            f"- 共 {latest_video_info['total_videos']} 个视频\n"
+            f"- 查看链接：{latest_video_info['presigned_url']}"
+        )
+    else:
+        video_text = "（MinIO 中暂无进度视频）"
+
     return QUERY_PROMPT.format(
         question=question,
         project_name=project_info.get("name", "未知项目"),
@@ -204,4 +220,5 @@ def build_query_prompt(
         project_desc=project_info.get("description", "")[:200],
         progress_text=progress_text,
         documents_text=docs_text,
+        video_text=video_text,
     )

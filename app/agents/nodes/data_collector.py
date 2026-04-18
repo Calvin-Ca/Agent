@@ -48,10 +48,21 @@ def data_collector_node(state: AgentState) -> AgentState:
         reports_result = tool_registry.execute("db.get_recent_reports", project_id=project_id, limit=2)
         prev_reports = reports_result.data if reports_result.success else []
 
+    # 5. Latest video from MinIO (query mode only)
+    latest_video_info = None
+    if task_type == "query":
+        try:
+            video_result = tool_registry.execute("minio.get_latest_video")
+            if video_result.success:
+                latest_video_info = video_result.data  # may be None if no videos exist
+        except Exception as e:
+            logger.warning("MinIO video query failed (non-fatal): {}", e)
+
     logger.info(
-        "DataCollector: project='{}', progress={}, docs={}, prev_reports={}",
+        "DataCollector: project='{}', progress={}, docs={}, prev_reports={}, video={}",
         project_info.get("name"), len(progress_records),
         len(documents_text), len(prev_reports),
+        latest_video_info.get("filename") if latest_video_info else "无",
     )
 
     return {
@@ -60,5 +71,6 @@ def data_collector_node(state: AgentState) -> AgentState:
         "progress_records": progress_records,
         "documents_text": documents_text,
         "sql_results": prev_reports,
+        "latest_video_info": latest_video_info,
         "current_step": "data_collector",
     }

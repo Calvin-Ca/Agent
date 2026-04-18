@@ -6,7 +6,7 @@ NOTE: Now delegates to app.orchestration.query_workflow.
 
 from __future__ import annotations
 
-from app.orchestration.query_workflow import query_workflow
+from app.agents.graphs.query_graph import query_workflow
 
 
 def query_progress_sync(project_id: str, user_id: str, question: str) -> dict:

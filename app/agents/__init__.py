@@ -1,6 +1,6 @@
-"""Agent core — LangGraph workflow, nodes, tools, prompts."""
+"""Agent core — LangGraph graphs, nodes, tools, prompts."""
 
-from app.orchestration.report_workflow import report_workflow
-from app.orchestration.query_workflow import query_workflow
+from app.agents.graphs.report_graph import report_workflow
+from app.agents.graphs.query_graph import query_workflow
 
 __all__ = ["report_workflow", "query_workflow"]

@@ -1,6 +1,6 @@
-"""Vector memory — Milvus-backed store for document embeddings.
+"""Long-term memory — Milvus-backed vector store for document embeddings.
 
-Wraps app.db.milvus with a clean interface.
+Persistent cross-session memory for semantic search over documents.
 Implements VectorStore protocol.
 """
 

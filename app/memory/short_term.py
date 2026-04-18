@@ -1,6 +1,6 @@
-"""Cache memory — Redis-backed store for caching and distributed locks.
+"""Short-term memory — Redis-backed store for session caching and distributed locks.
 
-Wraps app.db.redis with a clean interface.
+TTL-based ephemeral storage for session history, intermediate results.
 Implements CacheStore protocol.
 """
 

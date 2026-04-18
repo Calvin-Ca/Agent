@@ -65,14 +65,15 @@ tool_registry = ToolRegistry()
 
 def auto_discover_tools() -> None:
     """Register all built-in tools. Called at app startup."""
-    from app.tools.db_query import (
+    from app.tools.builtin.sql_query import (
         GetProjectInfoTool,
         GetRecentProgressTool,
         GetRecentReportsTool,
         GetDocumentListTool,
     )
-    from app.tools.vector_search import VectorSearchTool, MultiQuerySearchTool
-    from app.tools.export import ExportDocxTool, ExportMarkdownTool
+    from app.tools.builtin.vector_search import VectorSearchTool, MultiQuerySearchTool
+    from app.tools.builtin.file_ops import ExportDocxTool, ExportMarkdownTool
+    from app.tools.builtin.minio_query import GetLatestVideoTool
 
     builtin_tools = [
         GetProjectInfoTool(),
@@ -83,6 +84,7 @@ def auto_discover_tools() -> None:
         MultiQuerySearchTool(),
         ExportDocxTool(),
         ExportMarkdownTool(),
+        GetLatestVideoTool(),
     ]
 
     for tool in builtin_tools:

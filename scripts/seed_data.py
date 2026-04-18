@@ -29,7 +29,7 @@ async def main() -> None:
     async with factory() as db:
         # ── Demo User ────────────────────────────────────────
         existing = await db.execute(
-            text("SELECT id FROM users WHERE username = 'demo'")
+            text("SELECT id FROM users WHERE username = 'caic'")
         )
         if existing.scalar():
             print("Demo user already exists, skipping seed.")
@@ -37,15 +37,15 @@ async def main() -> None:
             return
 
         user = User(
-            username="demo",
-            email="demo@example.com",
-            hashed_password=hash_password("demo123456"),
-            nickname="演示用户",
+            username="caic",
+            email="caic@example.com",
+            hashed_password=hash_password("caic"),
+            nickname="CaiC",
             role=1,
         )
         db.add(user)
         await db.flush()
-        print(f"Created user: demo / demo123456 (id={user.id})")
+        print(f"Created user: caic / caic (id={user.id})")
 
         # ── Demo Projects ────────────────────────────────────
         projects_data = [
@@ -83,7 +83,7 @@ async def main() -> None:
 
     await close_mysql()
     print("\nSeed complete ✓")
-    print("Login with: username=demo, password=demo123456")
+    print("Login with: username=caic, password=caic")
 
 
 if __name__ == "__main__":

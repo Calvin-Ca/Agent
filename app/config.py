@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     paddleocr_api_url: str = ""  # e.g. http://127.0.0.1:8868/predict/ocr_system; empty = disabled
 
     # ── MinIO ────────────────────────────────────────────────
-    minio_endpoint: str = "127.0.0.1:9000"
+    minio_endpoint: str = "127.0.0.1:19000"
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "weekly-report"

@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from loguru import logger
 
-from app.perception.chunker import Chunk
-from app.memory.vector import vector_memory
+from app.pipeline.chunker import Chunk
+from app.memory.long_term import vector_memory
 
 
 def embed_texts(texts: list[str], batch_size: int | None = None) -> list[list[float]]:

@@ -6,7 +6,7 @@ NOTE: Now delegates to app.orchestration.report_workflow.
 
 from __future__ import annotations
 
-from app.orchestration.report_workflow import report_workflow
+from app.agents.graphs.report_graph import report_workflow
 
 
 def generate_report_sync(project_id: str, user_id: str, week_start: str = "") -> dict:

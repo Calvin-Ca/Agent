@@ -1,4 +1,4 @@
-"""Orchestration layer protocols — define the interface for workflows.
+"""Agent base protocols — define the interface for workflows.
 
 Every workflow (report, query, ...) implements the Workflow protocol.
 """

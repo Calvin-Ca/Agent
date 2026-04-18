@@ -12,8 +12,8 @@ from pathlib import Path
 from loguru import logger
 from PIL import Image
 
-from app.perception.base import ExtractionResult
-from app.perception.ocr import ocr_extract
+from app.pipeline.base import ExtractionResult
+from app.pipeline.ocr import ocr_extract
 
 
 class ImageProcessor:

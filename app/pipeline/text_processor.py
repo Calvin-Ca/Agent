@@ -7,7 +7,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from app.perception.base import ExtractionResult
+from app.pipeline.base import ExtractionResult
 
 
 class TextProcessor:
