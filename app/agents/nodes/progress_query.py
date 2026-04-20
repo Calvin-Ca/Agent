@@ -5,10 +5,12 @@ from __future__ import annotations
 from loguru import logger
 
 from app.agents.state import AgentState
+from app.agents.callbacks.logging import log_node
 from app.agents.prompts.templates import QUERY_SYSTEM, build_query_prompt
 from app.model_service.llm import llm_generate
 
 
+@log_node
 def progress_query_node(state: AgentState) -> AgentState:
     """Answer a natural language question about project progress."""
     user_input = state.get("user_input", "")

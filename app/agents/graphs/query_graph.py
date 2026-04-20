@@ -64,7 +64,9 @@ class QueryWorkflow:
         Returns:
             {"success": bool, "answer": str, "error": str | None}
         """
-        logger.info("QueryWorkflow.run: project={}, question='{}'", project_id, question[:50])
+        import time as _time
+        workflow_start = _time.perf_counter()
+        logger.info("[Workflow:Query] START | project={} question='{}'", project_id, question[:80])
 
         graph = self._get_graph()
         initial_state: AgentState = {
@@ -92,14 +94,17 @@ class QueryWorkflow:
 
         final_state = graph.invoke(initial_state)
 
+        elapsed_ms = (_time.perf_counter() - workflow_start) * 1000
         error = final_state.get("error", "")
         if error:
-            logger.error("Query workflow failed: {}", error)
+            logger.error("[Workflow:Query] FAILED | {:.0f}ms | error={}", elapsed_ms, error)
             return {"success": False, "answer": "", "error": error}
 
+        answer = final_state.get("query_answer", "")
+        logger.info("[Workflow:Query] DONE | {:.0f}ms | answer_chars={}", elapsed_ms, len(answer))
         return {
             "success": True,
-            "answer": final_state.get("query_answer", ""),
+            "answer": answer,
             "error": None,
         }
 

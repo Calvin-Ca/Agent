@@ -80,7 +80,9 @@ class ReportWorkflow:
                 "error": str | None,
             }
         """
-        logger.info("ReportWorkflow.run: project={}, user={}", project_id, user_id)
+        import time as _time
+        workflow_start = _time.perf_counter()
+        logger.info("[Workflow:Report] START | project={} user={} week_start='{}'", project_id, user_id, week_start)
 
         graph = self._get_graph()
         initial_state: AgentState = {
@@ -107,15 +109,22 @@ class ReportWorkflow:
 
         final_state = graph.invoke(initial_state)
 
+        elapsed_ms = (_time.perf_counter() - workflow_start) * 1000
         error = final_state.get("error", "")
         if error:
-            logger.error("Report workflow failed: {}", error)
+            logger.error("[Workflow:Report] FAILED | {:.0f}ms | error={}", elapsed_ms, error)
             return {"success": False, "title": "", "content": "", "summary": "", "error": error}
 
+        title = final_state.get("report_title", "")
+        content = final_state.get("report_draft", "")
+        logger.info(
+            "[Workflow:Report] DONE | {:.0f}ms | title='{}' content_chars={}",
+            elapsed_ms, title, len(content),
+        )
         return {
             "success": True,
-            "title": final_state.get("report_title", ""),
-            "content": final_state.get("report_draft", ""),
+            "title": title,
+            "content": content,
             "summary": final_state.get("report_summary", ""),
             "error": None,
         }

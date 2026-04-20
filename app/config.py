@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     milvus_collection: str = "doc_embeddings"
     milvus_dim: int = 1024  # BGE-large-zh output dim
 
-    # ── 模型服务 — ollama | api(vLLM) ──────────────────────────
+    # ── model service — ollama | api(vLLM) ──────────────────────────
     backend: str = "vllm"  # 统一后端选择: vllm | ollama
     llm_max_tokens: int = 2048
 

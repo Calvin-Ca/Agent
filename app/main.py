@@ -20,6 +20,7 @@ from app.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.middleware import register_middleware
 from app.core.response import R
+from app.observability.logger import setup_logging
 from app.db.milvus import connect_milvus, disconnect_milvus
 from app.db.mysql import close_mysql, get_session_factory
 from app.db.redis import close_redis, get_redis
@@ -29,6 +30,10 @@ from app.db.redis import close_redis, get_redis
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup / shutdown lifecycle."""
     settings = get_settings()
+    setup_logging(
+        log_level="DEBUG" if settings.debug else "INFO",
+        json_output=settings.app_env == "production",
+    )
     logger.info("Starting {} (env={})", settings.app_name, settings.app_env)
 
     # ── Startup ──────────────────────────────────────────────

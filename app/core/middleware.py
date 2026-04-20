@@ -13,12 +13,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
+from app.observability.logger import generate_request_id, request_id_var, user_id_var
+
 
 def register_middleware(app: FastAPI) -> None:
     """Register all middleware on the FastAPI app."""
 
     # ── CORS ─────────────────────────────────────────────────
-    # 浏览器限制 “不同来源的网站互相访问” 的安全机制，一个域包括 “协议 + 域名 + 端口”，有一个不同就是跨域
+    # 浏览器限制 "不同来源的网站互相访问" 的安全机制，一个域包括 "协议 + 域名 + 端口"，有一个不同就是跨域
     # 例如 http://localhost:3000 和 http://localhost:8000
     app.add_middleware(
         CORSMiddleware,
@@ -52,34 +54,84 @@ def register_middleware(app: FastAPI) -> None:
     # ── Request Logging ──────────────────────────────────────
     @app.middleware("http")
     async def log_requests(request: Request, call_next: Callable) -> Response:
+        # Skip noisy endpoints
+        path = request.url.path
+        if path in ("/health", "/docs", "/redoc", "/openapi.json"):
+            return await call_next(request)
+
+        # Generate and set request ID
+        rid = request.headers.get("X-Request-ID") or generate_request_id()
+        request_id_var.set(rid)
+
+        # Extract user ID from auth header (best-effort)
+        uid = _extract_user_id(request)
+        if uid:
+            user_id_var.set(uid)
+
+        # Client IP
+        client_ip = request.client.host if request.client else "unknown"
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+
+        # Read request body for logging (only for relevant content types)
+        request_body_summary = ""
+        if request.method in ("POST", "PUT", "PATCH"):
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                body_bytes = await request.body()
+                request_body_summary = _truncate(body_bytes.decode("utf-8", errors="replace"), 500)
+            elif "multipart/form-data" in content_type:
+                request_body_summary = "[multipart/form-data]"
+            elif "application/x-www-form-urlencoded" in content_type:
+                body_bytes = await request.body()
+                request_body_summary = _truncate(body_bytes.decode("utf-8", errors="replace"), 500)
+
+        logger.info(
+            "→ {method} {path} | ip={ip} | body={body}",
+            method=request.method,
+            path=path,
+            ip=client_ip,
+            body=request_body_summary or "-",
+        )
+
         start = time.perf_counter()
         response: Response = await call_next(request)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         logger.info(
-            "{method} {path} → {status} ({elapsed:.0f}ms)",
+            "← {method} {path} → {status} ({elapsed:.0f}ms)",
             method=request.method,
-            path=request.url.path,
+            path=path,
             status=response.status_code,
             elapsed=elapsed_ms,
         )
+
+        # Inject tracing headers into response
+        response.headers["X-Request-ID"] = rid
         response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.0f}"
         return response
 
 
-def _get_client_id(request: Request) -> str:
-    """Extract client identifier for rate limiting."""
-    # Try to get user ID from Authorization header
+def _extract_user_id(request: Request) -> str:
+    """Best-effort extract user ID from Bearer token."""
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):
         try:
             from app.core.security import decode_access_token
             payload = decode_access_token(auth.removeprefix("Bearer ").strip())
-            user_id = payload.get("sub", "")
-            if user_id:
-                return f"user:{user_id}"
+            return str(payload.get("sub", ""))
         except Exception:
             pass
+    return ""
+
+
+def _get_client_id(request: Request) -> str:
+    """Extract client identifier for rate limiting."""
+    # Try to get user ID from Authorization header
+    uid = _extract_user_id(request)
+    if uid:
+        return f"user:{uid}"
 
     # Fallback to IP
     client_ip = request.client.host if request.client else "unknown"
@@ -113,3 +165,10 @@ async def _check_rate_limit(client_id: str, max_requests: int, window_seconds: i
         # If Redis is down, allow the request (fail open)
         logger.warning("Rate limit check failed (allowing request): {}", e)
         return True
+
+
+def _truncate(s: str, max_len: int) -> str:
+    """Truncate a string and append '...' if it exceeds max_len."""
+    if len(s) <= max_len:
+        return s
+    return s[:max_len] + "..."

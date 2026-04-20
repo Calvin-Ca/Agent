@@ -5,8 +5,10 @@ from __future__ import annotations
 from loguru import logger
 
 from app.agents.state import AgentState
+from app.agents.callbacks.logging import log_node
 
 
+@log_node
 def planner_node(state: AgentState) -> AgentState:
     """Route based on task_type. Validates required fields."""
     task_type = state.get("task_type", "unknown")

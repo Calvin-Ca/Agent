@@ -5,10 +5,12 @@ from __future__ import annotations
 from loguru import logger
 
 from app.agents.state import AgentState
+from app.agents.callbacks.logging import log_node
 from app.agents.prompts.templates import REVIEW_SYSTEM, build_review_prompt
 from app.model_service.llm import llm_generate
 
 
+@log_node
 def report_reviewer_node(state: AgentState) -> AgentState:
     """Review the report draft and extract summary.
 

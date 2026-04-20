@@ -50,75 +50,89 @@ async def chat(
     db: DBSession,
     user: CurrentUser,
     prompt: str = Form(..., description="用户提示词"),
-    project_id: str | None = Form(default=None, description="目标项目ID（可选）"),
     file: UploadFile | None = File(default=None, description="上传文件（可选）"),
 ):
     """Unified intelligent endpoint. Recognizes intent from prompt and executes."""
+    import time as _time
     from app.agents.graphs.router_graph import recognize_intent
 
+    chat_start = _time.perf_counter()
+
     has_file = file is not None and file.filename
+    logger.info(
+        "[Chat] 收到请求 | user={} prompt='{}' has_file={}",
+        user.id, prompt[:100], bool(has_file),
+    )
+
     intent_result = await asyncio.get_event_loop().run_in_executor(
-        None, recognize_intent, prompt, project_id, bool(has_file),
+        None, recognize_intent, prompt, None, bool(has_file),
     )
 
     intent = intent_result["intent"]
     params = intent_result.get("params", {})
-    logger.info("Chat: user={} intent={} params={}", user.id, intent, params)
+    logger.info("[Chat] 意图识别 | user={} intent={} params={}", user.id, intent, params)
 
-    # Resolve project_id: explicit param > intent-extracted > None
-    resolved_project_id = project_id or params.get("project_id")
+    resolved_project_id = params.get("project_id")
 
     # ── Route to handler ──────────────────────────────────────
     try:
         if intent == "create_project":
-            return await _handle_create_project(db, user, params, prompt)
+            result = await _handle_create_project(db, user, params, prompt)
 
         elif intent == "list_projects":
-            return await _handle_list_projects(db, user)
+            result = await _handle_list_projects(db, user)
 
         elif intent == "update_project":
-            return await _handle_update_project(db, user, resolved_project_id, params)
+            result = await _handle_update_project(db, user, resolved_project_id, params)
 
         elif intent == "delete_project":
-            return await _handle_delete_project(db, user, resolved_project_id)
+            result = await _handle_delete_project(db, user, resolved_project_id)
 
         elif intent == "record_progress":
-            return await _handle_record_progress(db, user, resolved_project_id, params)
+            result = await _handle_record_progress(db, user, resolved_project_id, params)
 
         elif intent == "list_progress":
-            return await _handle_list_progress(db, user, resolved_project_id)
+            result = await _handle_list_progress(db, user, resolved_project_id)
 
         elif intent == "generate_report":
-            return await _handle_generate_report(user, db, resolved_project_id, params)
+            result = await _handle_generate_report(user, db, resolved_project_id, params)
 
         elif intent == "list_reports":
-            return await _handle_list_reports(db, user, resolved_project_id)
+            result = await _handle_list_reports(db, user, resolved_project_id)
 
         elif intent == "get_report":
-            return await _handle_get_report(db, user, params)
+            result = await _handle_get_report(db, user, params)
 
         elif intent == "export_report":
-            return await _handle_export_report(db, user, params)
+            result = await _handle_export_report(db, user, params)
 
         elif intent == "upload_file":
             if not has_file:
-                return R.ok(data=ChatResponse(
+                result = R.ok(data=ChatResponse(
                     intent=intent,
                     message="请上传文件后重试。",
                 ))
-            return await _handle_upload_file(db, user, resolved_project_id, file)
+            else:
+                result = await _handle_upload_file(db, user, resolved_project_id, file)
 
         elif intent == "query":
-            return await _handle_query(db, user, resolved_project_id, params, prompt)
+            result = await _handle_query(db, user, resolved_project_id, params, prompt)
 
         else:
             # Unknown intent — treat as query
-            return await _handle_query(db, user, resolved_project_id, params, prompt)
+            result = await _handle_query(db, user, resolved_project_id, params, prompt)
 
     except NotFoundError as e:
-        return R.ok(data=ChatResponse(intent=intent, message=str(e)))
+        result = R.ok(data=ChatResponse(intent=intent, message=str(e)))
     except BizError as e:
-        return R.ok(data=ChatResponse(intent=intent, message=e.message))
+        result = R.ok(data=ChatResponse(intent=intent, message=e.message))
+
+    elapsed_ms = (_time.perf_counter() - chat_start) * 1000
+    logger.info(
+        "[Chat] 完成 | user={} intent={} elapsed={:.0f}ms",
+        user.id, intent, elapsed_ms,
+    )
+    return result
 
 
 # ══════════════════════════════════════════════════════════════

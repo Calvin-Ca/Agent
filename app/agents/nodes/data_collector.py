@@ -5,9 +5,11 @@ from __future__ import annotations
 from loguru import logger
 
 from app.agents.state import AgentState
+from app.agents.callbacks.logging import log_node
 from app.tools.registry import tool_registry
 
 
+@log_node
 def data_collector_node(state: AgentState) -> AgentState:
     """Collect all relevant data for report generation or query answering."""
     project_id = state["project_id"]

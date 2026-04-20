@@ -7,10 +7,12 @@ from datetime import date, timedelta
 from loguru import logger
 
 from app.agents.state import AgentState
+from app.agents.callbacks.logging import log_node
 from app.agents.prompts.templates import REPORT_SYSTEM, build_report_prompt
 from app.model_service.llm import llm_generate
 
 
+@log_node
 def report_writer_node(state: AgentState) -> AgentState:
     """Generate a weekly report based on collected data."""
     project_info = state.get("project_info", {})

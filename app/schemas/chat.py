@@ -9,7 +9,6 @@ class ChatRequest(BaseModel):
     """Unified chat request. Only prompt is required."""
 
     prompt: str = Field(..., min_length=1, max_length=2000, examples=["帮我创建一个项目，名称叫城南花园三期"])
-    project_id: str | None = Field(default=None, description="目标项目ID，部分操作需要")
 
 
 class IntentResult(BaseModel):
