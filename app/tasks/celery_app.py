@@ -6,11 +6,21 @@ Usage:
 """
 
 from celery import Celery
-from celery.signals import worker_init
+from celery.signals import beat_init, worker_init
+from loguru import logger
 
 from app.config import get_settings
+from app.observability.logger import setup_logging
 
 settings = get_settings()
+
+
+def _init_celery_logging() -> None:
+    """Initialize shared logging for Celery worker/beat processes."""
+    setup_logging(
+        log_level="DEBUG" if settings.debug else "INFO",
+        json_output=settings.app_env == "production",
+    )
 
 celery_app = Celery(
     "smart_weekly_report",
@@ -44,9 +54,19 @@ celery_app.conf.update(
 
 @worker_init.connect
 def init_worker(**kwargs):
-    """Register built-in tools when Celery worker starts."""
+    """Initialize unified logging and register built-in tools for Celery."""
+    _init_celery_logging()
+    logger.info("Celery worker logging initialized")
+
     from app.tools.registry import auto_discover_tools
     auto_discover_tools()
+
+
+@beat_init.connect
+def init_beat(**kwargs):
+    """Initialize unified logging for Celery beat."""
+    _init_celery_logging()
+    logger.info("Celery beat logging initialized")
 
 
 # Explicitly include task modules (autodiscover only finds tasks.py, not document_tasks.py)

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from app.observability.logger import generate_request_id, request_id_var, user_id_var
+from app.observability.logger import build_request_log_filename, generate_request_id, request_log_scope
 
 
 def register_middleware(app: FastAPI) -> None:
@@ -61,56 +61,67 @@ def register_middleware(app: FastAPI) -> None:
 
         # Generate and set request ID
         rid = request.headers.get("X-Request-ID") or generate_request_id()
-        request_id_var.set(rid)
-
-        # Extract user ID from auth header (best-effort)
         uid = _extract_user_id(request)
-        if uid:
-            user_id_var.set(uid)
 
-        # Client IP
-        client_ip = request.client.host if request.client else "unknown"
-        forwarded = request.headers.get("x-forwarded-for", "")
-        if forwarded:
-            client_ip = forwarded.split(",")[0].strip()
+        # Per-request log file under logs/
+        import time as _time
 
-        # Read request body for logging (only for relevant content types)
-        request_body_summary = ""
-        if request.method in ("POST", "PUT", "PATCH"):
-            content_type = request.headers.get("content-type", "")
-            if "application/json" in content_type:
-                body_bytes = await request.body()
-                request_body_summary = _truncate(body_bytes.decode("utf-8", errors="replace"), 500)
-            elif "multipart/form-data" in content_type:
-                request_body_summary = "[multipart/form-data]"
-            elif "application/x-www-form-urlencoded" in content_type:
-                body_bytes = await request.body()
-                request_body_summary = _truncate(body_bytes.decode("utf-8", errors="replace"), 500)
+        inv_ts = 9999999999 - int(_time.time())
+        request_log_file = build_request_log_filename(rid, inv_ts)
 
-        logger.info(
-            "→ {method} {path} | ip={ip} | body={body}",
-            method=request.method,
-            path=path,
-            ip=client_ip,
-            body=request_body_summary or "-",
-        )
+        with request_log_scope(
+            request_id=rid,
+            user_id=uid or "-",
+            request_log_file=request_log_file,
+        ):
+            # Client IP
+            client_ip = request.client.host if request.client else "unknown"
+            forwarded = request.headers.get("x-forwarded-for", "")
+            if forwarded:
+                client_ip = forwarded.split(",")[0].strip()
 
-        start = time.perf_counter()
-        response: Response = await call_next(request)
-        elapsed_ms = (time.perf_counter() - start) * 1000
+            # Read request body for logging (only for relevant content types)
+            request_body_summary = ""
+            if request.method in ("POST", "PUT", "PATCH"):
+                content_type = request.headers.get("content-type", "")
+                if "application/json" in content_type:
+                    body_bytes = await request.body()
+                    request_body_summary = _truncate(body_bytes.decode("utf-8", errors="replace"), 500)
+                elif "multipart/form-data" in content_type:
+                    request_body_summary = "[multipart/form-data]"
+                elif "application/x-www-form-urlencoded" in content_type:
+                    body_bytes = await request.body()
+                    request_body_summary = _truncate(body_bytes.decode("utf-8", errors="replace"), 500)
 
-        logger.info(
-            "← {method} {path} → {status} ({elapsed:.0f}ms)",
-            method=request.method,
-            path=path,
-            status=response.status_code,
-            elapsed=elapsed_ms,
-        )
+            logger.info(
+                "→ {method} {path} | ip={ip} | body={body}",
+                method=request.method,
+                path=path,
+                ip=client_ip,
+                body=request_body_summary or "-",
+            )
 
-        # Inject tracing headers into response
-        response.headers["X-Request-ID"] = rid
-        response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.0f}"
-        return response
+            start = time.perf_counter()
+            response: Response | None = None
+            try:
+                response = await call_next(request)
+                return response
+            finally:
+                elapsed_ms = (time.perf_counter() - start) * 1000
+                status = response.status_code if response else 500
+
+                logger.info(
+                    "← {method} {path} → {status} ({elapsed:.0f}ms)",
+                    method=request.method,
+                    path=path,
+                    status=status,
+                    elapsed=elapsed_ms,
+                )
+
+                # Inject tracing headers into response
+                if response:
+                    response.headers["X-Request-ID"] = rid
+                    response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.0f}"
 
 
 def _extract_user_id(request: Request) -> str:

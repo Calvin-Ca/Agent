@@ -3,14 +3,18 @@
 Provides:
 - request_id injection into every log line within a request
 - Console output (colored) + file output (plain text, daily rotation)
-- Log files saved to ./logs/
+- Per-request logs saved to ./logs/{request_file}.log
+- Helpers to propagate log context across threads / Celery tasks
 """
 
 from __future__ import annotations
 
 import sys
 import uuid
-from contextvars import ContextVar
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar, copy_context
+from functools import partial
 from pathlib import Path
 
 from loguru import logger
@@ -18,6 +22,7 @@ from loguru import logger
 # ── Request-scoped context ────────────────────────────────────
 request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
 user_id_var: ContextVar[str] = ContextVar("user_id", default="-")
+request_log_file_var: ContextVar[str] = ContextVar("request_log_file", default="")
 
 LOG_DIR = Path("./logs")
 
@@ -47,6 +52,20 @@ def generate_request_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
+def build_request_log_filename(rid: str, inv_ts: int) -> str:
+    """Build the request log filename from inverted timestamp + request ID."""
+    return f"{inv_ts}_{rid[:8]}.log"
+
+
+def get_log_context() -> dict[str, str]:
+    """Return the current request-scoped log context."""
+    return {
+        "request_id": request_id_var.get("-"),
+        "user_id": user_id_var.get("-"),
+        "request_log_file": request_log_file_var.get(""),
+    }
+
+
 def _patcher(record: dict) -> None:
     """Inject request context into every log record."""
     record["extra"]["request_id"] = request_id_var.get("-")
@@ -54,11 +73,10 @@ def _patcher(record: dict) -> None:
 
 
 def setup_logging(log_level: str = "INFO", json_output: bool = False) -> None:
-    """Configure loguru with console + file handlers.
+    """Configure loguru with console handlers and request-scoped file sinks.
 
-    File layout under ./logs/:
-        app.log          — all logs (INFO+), daily rotation, 30 days retention
-        error.log        — errors only (ERROR+), daily rotation, 60 days retention
+    Request middleware adds a temporary per-request sink so each request gets
+    its own log file under ``./logs/``.
 
     Args:
         log_level: Minimum log level for console output.
@@ -83,29 +101,65 @@ def setup_logging(log_level: str = "INFO", json_output: bool = False) -> None:
             format=_CONSOLE_FORMAT,
         )
 
-    # ── File handler: all logs ────────────────────────────────
-    logger.add(
-        LOG_DIR / "app.log",
-        level="INFO",
-        format=_FILE_FORMAT,
-        rotation="00:00",       # 每天午夜轮转
-        retention="30 days",    # 保留 30 天
-        compression="gz",       # 旧日志自动压缩
-        encoding="utf-8",
-        enqueue=True,           # 线程安全，异步写入不阻塞
-    )
+    # Patch every log record with request context
+    logger.configure(patcher=_patcher)
 
-    # ── File handler: errors only ─────────────────────────────
-    logger.add(
-        LOG_DIR / "error.log",
-        level="ERROR",
+
+def add_request_sink(rid: str, request_log_file: str) -> int:
+    """Add a per-request sink filtered by request ID.
+
+    Args:
+        rid: The request ID used to filter log records.
+        request_log_file: Request log filename under ``./logs/``.
+
+    Returns:
+        Loguru sink ID to remove after the request finishes.
+    """
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _request_filter(record: dict) -> bool:
+        return record["extra"].get("request_id") == rid
+
+    return logger.add(
+        LOG_DIR / request_log_file,
+        level="DEBUG",
         format=_FILE_FORMAT,
-        rotation="00:00",
-        retention="60 days",
-        compression="gz",
+        filter=_request_filter,
         encoding="utf-8",
         enqueue=True,
     )
 
-    # Patch every log record with request context
-    logger.configure(patcher=_patcher)
+
+def remove_request_sink(sink_id: int) -> None:
+    """Remove the per-request sink after the request completes."""
+    try:
+        logger.remove(sink_id)
+    except ValueError:
+        pass
+
+
+@contextmanager
+def request_log_scope(request_id: str, user_id: str = "-", request_log_file: str = "") -> Iterator[None]:
+    """Bind request log context and optionally attach a request sink."""
+    request_id_token = request_id_var.set(request_id or "-")
+    user_id_token = user_id_var.set(user_id or "-")
+    request_log_file_token = request_log_file_var.set(request_log_file or "")
+    sink_id: int | None = None
+
+    if request_id and request_id != "-" and request_log_file:
+        sink_id = add_request_sink(request_id, request_log_file)
+
+    try:
+        yield
+    finally:
+        if sink_id is not None:
+            remove_request_sink(sink_id)
+        request_log_file_var.reset(request_log_file_token)
+        user_id_var.reset(user_id_token)
+        request_id_var.reset(request_id_token)
+
+
+async def run_in_executor_with_context(loop, func: Callable, *args):
+    """Run a blocking callable in the executor while preserving contextvars."""
+    ctx = copy_context()
+    return await loop.run_in_executor(None, partial(ctx.run, func, *args))

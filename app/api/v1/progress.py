@@ -12,6 +12,7 @@ from app.core.exceptions import NotFoundError
 from app.core.response import PageData, R
 from app.crud.project import project_crud
 from app.models.progress import Progress
+from app.observability.logger import run_in_executor_with_context
 from app.schemas.progress import ProgressCreate, ProgressOut, ProgressQuery
 
 from sqlalchemy import select, func
@@ -70,8 +71,12 @@ async def query_progress(body: ProgressQuery, db: DBSession, user: CurrentUser):
 
     from app.services.progress_service import query_progress_sync
 
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, query_progress_sync, body.project_id, user.id, body.question,
+    result = await run_in_executor_with_context(
+        asyncio.get_event_loop(),
+        query_progress_sync,
+        body.project_id,
+        user.id,
+        body.question,
     )
 
     if not result["success"]:

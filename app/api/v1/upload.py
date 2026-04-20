@@ -13,6 +13,7 @@ from app.crud.document import document_crud
 from app.crud.project import project_crud
 from app.db import minio
 from app.models.document import Document
+from app.observability.logger import get_log_context
 from app.schemas.upload import UploadOut
 
 router = APIRouter(prefix="/upload", tags=["upload"])
@@ -81,6 +82,12 @@ async def upload_file(
 
     # 7. Dispatch async processing task via Celery
     from app.tasks.document_tasks import process_document
-    process_document.delay(doc.id)
+    log_context = get_log_context()
+    process_document.delay(
+        document_id=doc.id,
+        user_id=str(user.id),
+        request_id=log_context["request_id"],
+        request_log_file=log_context["request_log_file"],
+    )
 
     return R.ok(data=UploadOut.model_validate(doc), message="上传成功，等待处理")

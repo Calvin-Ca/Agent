@@ -10,6 +10,7 @@ from app.core.exceptions import BizError, NotFoundError
 from app.core.response import PageData, R
 from app.crud.report import report_crud
 from app.crud.project import project_crud
+from app.observability.logger import get_log_context, run_in_executor_with_context
 from app.schemas.report import ReportGenerate, ReportOut
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -30,10 +31,13 @@ async def generate_report(
 
     # Dispatch Celery task
     from app.tasks.report_tasks import generate_report_task
+    log_context = get_log_context()
     task = generate_report_task.delay(
         project_id=body.project_id,
         user_id=user.id,
         week_start=body.week_start.isoformat() if body.week_start else "",
+        request_id=log_context["request_id"],
+        request_log_file=log_context["request_log_file"],
     )
 
     return R.ok(data={"task_id": task.id, "status": "generating"}, message="周报生成已启动")
@@ -49,8 +53,11 @@ async def generate_report_sync(body: ReportGenerate, user: CurrentUser, db: DBSe
     from app.services.report_service import generate_report_sync as gen_sync
     import asyncio
 
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, gen_sync, body.project_id, user.id,
+    result = await run_in_executor_with_context(
+        asyncio.get_event_loop(),
+        gen_sync,
+        body.project_id,
+        user.id,
         body.week_start.isoformat() if body.week_start else "",
     )
 

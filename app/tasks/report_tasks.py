@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import time
+
 from loguru import logger
 
 from app.tasks.celery_app import celery_app
 from app.db.redis import distributed_lock
+from app.observability.logger import request_log_scope
 
 
 @celery_app.task(
@@ -14,7 +17,14 @@ from app.db.redis import distributed_lock
     max_retries=1,
     default_retry_delay=30,
 )
-def generate_report_task(self, project_id: str, user_id: str, week_start: str = "") -> dict:
+def generate_report_task(
+    self,
+    project_id: str,
+    user_id: str,
+    week_start: str = "",
+    request_id: str = "-",
+    request_log_file: str = "",
+) -> dict:
     """Generate a weekly report asynchronously.
 
     Uses a distributed lock to prevent duplicate generation
@@ -22,25 +32,47 @@ def generate_report_task(self, project_id: str, user_id: str, week_start: str = 
     """
     import asyncio
 
-    lock_key = f"report:{project_id}:{week_start or 'current'}"
+    with request_log_scope(
+        request_id=request_id,
+        user_id=str(user_id),
+        request_log_file=request_log_file,
+    ):
+        task_start = time.perf_counter()
+        logger.info(
+            "Report task started | task_id={} project={} week_start='{}'",
+            self.request.id,
+            project_id,
+            week_start or "-",
+        )
 
-    async def _run():
-        async with distributed_lock(lock_key, timeout=300) as acquired:
-            if not acquired:
-                return {"success": False, "error": "另一个报告生成任务正在进行中"}
+        lock_key = f"report:{project_id}:{week_start or 'current'}"
 
-            from app.services.report_service import generate_report_sync
-            return generate_report_sync(project_id, user_id, week_start)
+        async def _run():
+            async with distributed_lock(lock_key, timeout=300) as acquired:
+                if not acquired:
+                    return {"success": False, "error": "另一个报告生成任务正在进行中"}
 
-    loop = asyncio.new_event_loop()
-    try:
-        result = loop.run_until_complete(_run())
-    finally:
-        loop.close()
+                from app.services.report_service import generate_report_sync
+                return generate_report_sync(project_id, user_id, week_start)
 
-    if result["success"]:
-        logger.info("Report task done: {}", result.get("report_id"))
-    else:
-        logger.error("Report task failed: {}", result.get("error"))
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(_run())
+        finally:
+            loop.close()
 
-    return result
+        elapsed_ms = (time.perf_counter() - task_start) * 1000
+        if result["success"]:
+            logger.info(
+                "Report task done | report_id={} | elapsed={:.0f}ms",
+                result.get("report_id"),
+                elapsed_ms,
+            )
+        else:
+            logger.error(
+                "Report task failed | error={} | elapsed={:.0f}ms",
+                result.get("error"),
+                elapsed_ms,
+            )
+
+        return result

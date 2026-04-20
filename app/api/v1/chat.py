@@ -25,6 +25,7 @@ from app.crud.document import document_crud
 from app.db import minio
 from app.models.document import Document
 from app.models.progress import Progress
+from app.observability.logger import get_log_context, run_in_executor_with_context
 from app.schemas.chat import ChatResponse
 from app.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
 from app.schemas.report import ReportOut
@@ -43,6 +44,9 @@ _ALLOWED_TYPES = {
     "text/csv": "text",
 }
 _MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+
+# Intents that do NOT require a project to be resolved
+_NO_PROJECT_INTENTS = {"create_project", "list_projects", "list_reports", "get_report", "export_report"}
 
 
 @router.post("", summary="智能对话")
@@ -64,15 +68,23 @@ async def chat(
         user.id, prompt[:100], bool(has_file),
     )
 
-    intent_result = await asyncio.get_event_loop().run_in_executor(
-        None, recognize_intent, prompt, None, bool(has_file),
+    intent_result = await run_in_executor_with_context(
+        asyncio.get_event_loop(),
+        recognize_intent,
+        prompt,
+        bool(has_file),
     )
 
     intent = intent_result["intent"]
     params = intent_result.get("params", {})
     logger.info("[Chat] 意图识别 | user={} intent={} params={}", user.id, intent, params)
 
-    resolved_project_id = params.get("project_id")
+    # ── Resolve project_name → project_id ─────────────────────
+    resolved_project_id = None
+    if intent not in _NO_PROJECT_INTENTS:
+        project_name = params.get("project_name", "")
+        if project_name:
+            resolved_project_id = await _resolve_project_id(db, user.id, project_name, intent)
 
     # ── Route to handler ──────────────────────────────────────
     try:
@@ -98,7 +110,12 @@ async def chat(
             result = await _handle_generate_report(user, db, resolved_project_id, params)
 
         elif intent == "list_reports":
-            result = await _handle_list_reports(db, user, resolved_project_id)
+            # list_reports supports optional project filtering by name
+            project_name = params.get("project_name", "")
+            filter_project_id = None
+            if project_name:
+                filter_project_id = await _resolve_project_id(db, user.id, project_name, intent)
+            result = await _handle_list_reports(db, user, filter_project_id)
 
         elif intent == "get_report":
             result = await _handle_get_report(db, user, params)
@@ -133,6 +150,47 @@ async def chat(
         user.id, intent, elapsed_ms,
     )
     return result
+
+
+# ══════════════════════════════════════════════════════════════
+# Project name → ID resolution
+# ══════════════════════════════════════════════════════════════
+
+
+async def _resolve_project_id(
+    db: DBSession,
+    owner_id: str,
+    project_name: str,
+    intent: str,
+) -> str | None:
+    """Resolve a user-provided project name to a project ID.
+
+    Uses fuzzy (LIKE) matching, returns the best match (most recently created).
+    Returns None if no match is found (caller decides how to handle).
+    """
+    matches = await project_crud.get_by_name(db, name=project_name, owner_id=owner_id)
+
+    if not matches:
+        logger.info("[Resolve] 未找到项目 | name='{}' owner={}", project_name, owner_id)
+        return None
+
+    if len(matches) == 1:
+        project = matches[0]
+        logger.info("[Resolve] 匹配项目 | name='{}' → id={} ({})", project_name, project.id, project.name)
+        return project.id
+
+    # Multiple matches — prefer exact match, otherwise pick the most recent
+    for p in matches:
+        if p.name == project_name:
+            logger.info("[Resolve] 精确匹配 | name='{}' → id={}", project_name, p.id)
+            return p.id
+
+    project = matches[0]  # already ordered by created_at desc
+    logger.info(
+        "[Resolve] 模糊匹配({}个候选) | name='{}' → id={} ({})",
+        len(matches), project_name, project.id, project.name,
+    )
+    return project.id
 
 
 # ══════════════════════════════════════════════════════════════
@@ -188,7 +246,7 @@ async def _handle_update_project(db: DBSession, user: CurrentUser, project_id: s
     if not project_id:
         return R.ok(data=ChatResponse(
             intent="update_project",
-            message="请指定要更新的项目ID。",
+            message="未找到匹配的项目，请确认项目名称是否正确。可以说「查看我的项目」获取列表。",
         ))
 
     project = await project_crud.get(db, id=project_id)
@@ -224,7 +282,7 @@ async def _handle_delete_project(db: DBSession, user: CurrentUser, project_id: s
     if not project_id:
         return R.ok(data=ChatResponse(
             intent="delete_project",
-            message="请指定要删除的项目ID。",
+            message="未找到匹配的项目，请确认项目名称是否正确。可以说「查看我的项目」获取列表。",
         ))
 
     project = await project_crud.get(db, id=project_id)
@@ -244,7 +302,7 @@ async def _handle_record_progress(db: DBSession, user: CurrentUser, project_id: 
     if not project_id:
         return R.ok(data=ChatResponse(
             intent="record_progress",
-            message="请指定项目ID以记录进度。",
+            message="未找到匹配的项目，请确认项目名称是否正确。可以说「查看我的项目」获取列表。",
         ))
 
     project = await project_crud.get(db, id=project_id)
@@ -277,7 +335,7 @@ async def _handle_list_progress(db: DBSession, user: CurrentUser, project_id: st
     if not project_id:
         return R.ok(data=ChatResponse(
             intent="list_progress",
-            message="请指定项目ID以查看进度。",
+            message="未找到匹配的项目，请确认项目名称是否正确。可以说「查看我的项目」获取列表。",
         ))
 
     project = await project_crud.get(db, id=project_id)
@@ -310,7 +368,7 @@ async def _handle_generate_report(user: CurrentUser, db: DBSession, project_id: 
     if not project_id:
         return R.ok(data=ChatResponse(
             intent="generate_report",
-            message="请指定项目ID以生成周报。",
+            message="未找到匹配的项目，请确认项目名称是否正确。可以说「查看我的项目」获取列表。",
         ))
 
     project = await project_crud.get(db, id=project_id)
@@ -321,10 +379,13 @@ async def _handle_generate_report(user: CurrentUser, db: DBSession, project_id: 
 
     # Dispatch Celery task for async generation
     from app.tasks.report_tasks import generate_report_task
+    log_context = get_log_context()
     task = generate_report_task.delay(
         project_id=project_id,
         user_id=user.id,
         week_start=week_start,
+        request_id=log_context["request_id"],
+        request_log_file=log_context["request_log_file"],
     )
 
     return R.ok(data=ChatResponse(
@@ -405,7 +466,7 @@ async def _handle_upload_file(db: DBSession, user: CurrentUser, project_id: str 
     if not project_id:
         return R.ok(data=ChatResponse(
             intent="upload_file",
-            message="请指定项目ID以上传文件。",
+            message="未找到匹配的项目，请确认项目名称是否正确。可以说「查看我的项目」获取列表。",
         ))
 
     project = await project_crud.get(db, id=project_id)
@@ -460,7 +521,13 @@ async def _handle_upload_file(db: DBSession, user: CurrentUser, project_id: str 
 
     # Dispatch async processing
     from app.tasks.document_tasks import process_document
-    process_document.delay(doc.id)
+    log_context = get_log_context()
+    process_document.delay(
+        document_id=doc.id,
+        user_id=str(user.id),
+        request_id=log_context["request_id"],
+        request_log_file=log_context["request_log_file"],
+    )
 
     out = UploadOut.model_validate(doc)
     return R.ok(data=ChatResponse(
@@ -474,7 +541,7 @@ async def _handle_query(db: DBSession, user: CurrentUser, project_id: str | None
     if not project_id:
         return R.ok(data=ChatResponse(
             intent="query",
-            message="请指定项目ID以进行查询。",
+            message="未找到匹配的项目，请确认项目名称是否正确。可以说「查看我的项目」获取列表。",
         ))
 
     project = await project_crud.get(db, id=project_id)
@@ -484,8 +551,12 @@ async def _handle_query(db: DBSession, user: CurrentUser, project_id: str | None
     question = params.get("question", prompt)
     from app.services.progress_service import query_progress_sync
 
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, query_progress_sync, project_id, user.id, question,
+    result = await run_in_executor_with_context(
+        asyncio.get_event_loop(),
+        query_progress_sync,
+        project_id,
+        user.id,
+        question,
     )
 
     if not result["success"]:
