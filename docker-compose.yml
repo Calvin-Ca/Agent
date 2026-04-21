@@ -1,45 +1,50 @@
 version: "3.9"
 
-# 先启动基础设施
-# 启动: docker compose up -d
-# 停止: docker compose down
-#
-# 服务一览:
-#   MySQL     : localhost:3307
-#   Redis     : localhost:6379
-#   Milvus    : localhost:19530
-#   MinIO     : localhost:9000  (API) / localhost:9001 (Console)
-#   Attu      : localhost:8088  (Milvus Web UI)
-
 services:
-
-  # ── MySQL 8.0 ──────────────────────────────────────────────
-  mysql:
-    image: mysql:8.0
-    container_name: agent-mysql
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-platform
     restart: unless-stopped
     ports:
-      - "3307:3306"
+      - "8000:8000"
+    env_file:
+      - .env
     environment:
-      MYSQL_ROOT_PASSWORD: root_pass_123
-      MYSQL_DATABASE: caic
-      MYSQL_USER: caic
-      MYSQL_PASSWORD: caic
+      APP_ENV: development
+      DATABASE_BACKEND: postgres
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agent_platform
+      DATABASE_URL_SYNC: postgresql+psycopg://postgres:postgres@postgres:5432/agent_platform
+      REDIS_HOST: redis
+      MILVUS_HOST: milvus
+      MINIO_ENDPOINT: minio-storage:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      milvus:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: agent_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./scripts/mysql_init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    command: >
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
-      --default-authentication-plugin=mysql_native_password
-      --max-connections=500
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_platform"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ── Redis 7 ────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: agent-redis
@@ -48,18 +53,13 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: >
-      redis-server
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-      --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
 
-  # ── Milvus 依赖：etcd + MinIO ───────────────────────────────
   etcd:
     image: quay.io/coreos/etcd:v3.5.16
     container_name: agent-etcd
@@ -90,13 +90,7 @@ services:
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
 
-  # ── Milvus Standalone ──────────────────────────────────────
   milvus:
     image: milvusdb/milvus:v2.4.13
     container_name: agent-milvus
@@ -113,26 +107,9 @@ services:
       MINIO_ADDRESS: minio-storage:9000
     volumes:
       - milvus_data:/var/lib/milvus
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-
-  # ── Attu — Milvus 可视化管理界面 ───────────────────────────
-  milvus-attu:
-    image: zilliz/attu:v2.4
-    container_name: agent-milvus-attu
-    restart: unless-stopped
-    ports:
-      - "8088:3000"
-    environment:
-      MILVUS_URL: milvus:19530
-    depends_on:
-      - milvus
 
 volumes:
-  mysql_data:
+  postgres_data:
   redis_data:
   etcd_data:
   minio_data:

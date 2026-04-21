@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
 from app.models.project import Project
-from app.schemas.project import ProjectCreate, ProjectUpdate
+from app.schema_defs.project import ProjectCreate, ProjectUpdate
 
 
 class ProjectCRUD(CRUDBase[Project, ProjectCreate, ProjectUpdate]):

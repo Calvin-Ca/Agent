@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
 from app.models.report import Report
-from app.schemas.report import ReportGenerate, ReportOut
+from app.schema_defs.report import ReportGenerate, ReportOut
 
 
 class _ReportUpdate:

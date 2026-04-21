@@ -1,0 +1,8 @@
+[
+  {
+    "input": "帮我查看城南花园三期本周进展",
+    "thought": "Need to classify the request and retrieve project context.",
+    "action": "db_query",
+    "observation": "Fetched project progress records for the current week."
+  }
+]

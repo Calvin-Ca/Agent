@@ -1,0 +1,8 @@
+replicaCount: 2
+
+image:
+  repository: agent-platform
+  tag: latest
+
+service:
+  port: 80

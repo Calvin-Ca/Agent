@@ -35,7 +35,7 @@ config = context.config
 
 # Override sqlalchemy.url from app settings
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.mysql_dsn_sync)
+config.set_main_option("sqlalchemy.url", settings.sqlalchemy_dsn_sync)
 
 
 def run_migrations_offline() -> None:

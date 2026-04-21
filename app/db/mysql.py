@@ -30,7 +30,7 @@ def _get_engine() -> AsyncEngine:
     if _engine is None:
         settings = get_settings()
         _engine = create_async_engine(
-            settings.mysql_dsn,
+            settings.sqlalchemy_dsn,
             pool_size=20,
             max_overflow=10,
             pool_recycle=3600,

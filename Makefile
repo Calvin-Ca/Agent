@@ -1,11 +1,10 @@
-.PHONY: help dev up down db-init milvus-init seed lint test
+.PHONY: help dev up down logs worker beat db-init db-migrate seed seed-knowledge migrate-db lint fmt test eval
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 # ── Infrastructure ───────────────────────────────────────────
 up:  ## Start all Docker services
-	bash scripts/init_dirs.sh
 	docker compose up -d
 
 down:  ## Stop all Docker services
@@ -40,6 +39,12 @@ milvus-init:  ## Create Milvus collections
 seed:  ## Seed test data
 	python scripts/seed_data.py
 
+seed-knowledge:  ## Ingest local knowledge into long-term memory
+	python scripts/seed_knowledge.py
+
+migrate-db:  ## Apply Alembic migrations through the helper script
+	python scripts/migrate_db.py
+
 # ── Quality ──────────────────────────────────────────────────
 lint:  ## Lint with ruff
 	ruff check app/ tests/ --fix
@@ -48,4 +53,7 @@ fmt:  ## Format with ruff
 	ruff format app/ tests/
 
 test:  ## Run tests
-	pytest -v --cov=app --cov-report=term-missing
+	pytest -v --cov=app --cov=agent --cov=core --cov=llm --cov=memory --cov=tools --cov-report=term-missing
+
+eval:  ## Run lightweight offline evals
+	python -m evals.eval_runner

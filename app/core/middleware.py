@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from app.observability.logger import build_request_log_filename, generate_request_id, request_log_scope
+from agent.infra.logger import build_request_log_filename, generate_request_id, request_log_scope
 
 
 def register_middleware(app: FastAPI) -> None:

@@ -7,10 +7,12 @@ Usage:
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from typing import TYPE_CHECKING
+
 from loguru import logger
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 
 # ── Exception Hierarchy ──────────────────────────────────────
@@ -57,8 +59,11 @@ class RateLimitError(BizError):
 # ── Handlers ─────────────────────────────────────────────────
 
 
-def register_exception_handlers(app: FastAPI) -> None:
+def register_exception_handlers(app: "FastAPI") -> None:
     """Register all exception handlers on the FastAPI app."""
+    from fastapi import Request
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
 
     @app.exception_handler(AppError)
     async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:

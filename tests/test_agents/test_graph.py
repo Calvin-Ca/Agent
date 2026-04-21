@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.agents.state import AgentState
-from app.agents.planner.default_planner import planner_node
+from agent.core.planner import planner_node
+from agent.core.state import WorkflowState as AgentState
 
 
 class TestPlanner:
@@ -69,7 +69,7 @@ class TestPlanner:
 class TestPromptTemplates:
 
     def test_build_report_prompt(self):
-        from app.agents.prompts.templates import build_report_prompt
+        from agent.prompts.react import build_report_prompt
 
         prompt = build_report_prompt(
             project_info={"name": "测试项目", "code": "TST-001", "description": "测试"},
@@ -88,7 +88,7 @@ class TestPromptTemplates:
         assert "2026-04-07" in prompt
 
     def test_build_query_prompt(self):
-        from app.agents.prompts.templates import build_query_prompt
+        from agent.prompts.react import build_query_prompt
 
         prompt = build_query_prompt(
             question="目前进度如何？",
@@ -102,7 +102,7 @@ class TestPromptTemplates:
         assert "80%" in prompt
 
     def test_empty_data_does_not_crash(self):
-        from app.agents.prompts.templates import build_report_prompt, build_query_prompt
+        from agent.prompts.react import build_query_prompt, build_report_prompt
 
         # Should not raise with empty data
         build_report_prompt({}, [], [], [], "2026-04-07", "2026-04-13")

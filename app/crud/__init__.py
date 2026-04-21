@@ -1,5 +1,4 @@
-"""Package placeholder — implementation in later phases."""
-"""CRUD data access layer."""
+"""CRUD data access layer — repository instances for all domain entities."""
 
 from app.crud.user import user_crud
 from app.crud.project import project_crud

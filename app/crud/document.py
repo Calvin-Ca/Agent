@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
 from app.models.document import Document
-from app.schemas.upload import UploadOut
+from app.schema_defs.upload import UploadOut
 
 
 class _DocUpdate:

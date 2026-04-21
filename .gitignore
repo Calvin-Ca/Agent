@@ -46,7 +46,7 @@ Thumbs.db
 logs/
 
 # Questions
-question/
+.question/
 
 # Models (large files, download locally)
 models/

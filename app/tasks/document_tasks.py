@@ -20,17 +20,20 @@ from pathlib import Path
 from loguru import logger
 from sqlalchemy import text as sql_text, update
 
+from agent.input.preprocessor import (
+    chunk_text,
+    extract_from_image,
+    extract_from_pdf,
+    extract_from_text,
+    merge_extracted_content,
+)
+from agent.infra.logger import request_log_scope
+from agent.llm.local_provider import embed_texts
+from agent.memory.long_term import vector_memory
 from app.tasks.celery_app import celery_app
-from app.config import get_settings
 from app.db.mysql import get_session_factory
 from app.db.minio import sync_download_file
 from app.models.document import Document
-from app.pipeline.pdf_processor import extract_from_pdf
-from app.pipeline.image_processor import extract_from_image
-from app.pipeline.text_processor import extract_from_text, merge_extracted_content, clean_text
-from app.pipeline.chunker import chunk_text
-from app.pipeline.embedder import embed_and_store
-from app.observability.logger import request_log_scope
 
 
 def _run_async(coro):
@@ -153,7 +156,13 @@ def process_document(
             logger.info("Document {} → {} chunks", document_id, len(chunks))
 
             # 5. Embed and store to Milvus
-            vector_count = embed_and_store(chunks, project_id=project_id, document_id=document_id)
+            embeddings = embed_texts([chunk.text for chunk in chunks])
+            vector_count = vector_memory.store(
+                chunks,
+                embeddings,
+                project_id=project_id,
+                document_id=document_id,
+            )
 
             # 6. Update DB status
             _run_async(_update_document(

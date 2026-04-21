@@ -50,11 +50,11 @@ def test_embedding():
         return False
 
     try:
-        from app.model_service.embedding import embed_texts
+        from agent.llm.local_provider import embed_texts
 
         # API/Ollama 模式无需预加载，直接推理
         if settings.embed_backend == "local":
-            from app.model_service.embedding import get_embedder
+            from agent.llm.local_provider import get_embedder
             start = time.perf_counter()
             model = get_embedder()
             load_time = time.perf_counter() - start
@@ -93,7 +93,7 @@ def test_embedding():
         ok(f"Throughput: {throughput:.0f} texts/sec (50 texts in {bench_time:.2f}s)")
 
         if settings.embed_backend == "local":
-            from app.model_service.embedding import unload_embedder
+            from agent.llm.local_provider import unload_embedder
             unload_embedder()
         return True
 
@@ -118,7 +118,7 @@ def test_llm():
         return False
 
     try:
-        from app.model_service.llm import llm_generate
+        from agent.llm.local_provider import llm_generate
 
         # Simple generation test
         start = time.perf_counter()
@@ -144,7 +144,7 @@ def test_llm():
         print(f"    {response2[:200]}...")
 
         if settings.llm_backend == "local":
-            from app.model_service.llm import unload_llm
+            from agent.llm.local_provider import unload_llm
             unload_llm()
         return True
 
@@ -207,7 +207,7 @@ def test_vlm():
         ok(f"Test image generated: {test_img_path} ({img.size[0]}x{img.size[1]})")
 
         # ── 2. Load model and run inference ──────────────────────
-        from app.model_service.vlm import vlm_describe
+        from agent.llm.local_provider import vlm_describe
 
         info("Running VLM inference (this may take a while on first load)...")
 

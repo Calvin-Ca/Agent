@@ -10,7 +10,7 @@ from celery.signals import beat_init, worker_init
 from loguru import logger
 
 from app.config import get_settings
-from app.observability.logger import setup_logging
+from agent.infra.logger import setup_logging
 
 settings = get_settings()
 
@@ -58,7 +58,7 @@ def init_worker(**kwargs):
     _init_celery_logging()
     logger.info("Celery worker logging initialized")
 
-    from app.tools.registry import auto_discover_tools
+    from agent.tools.registry import auto_discover_tools
     auto_discover_tools()
 
 

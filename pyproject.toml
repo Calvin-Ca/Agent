@@ -1,9 +1,9 @@
 # pyproject.toml 的“分区”不是随便分的，而是有规范的（PEP）
 
 [project]                    # 核心分区1：项目本身信息 + 依赖
-name = "smart-weekly-report" # 键值对
+name = "agent-platform" # 键值对
 version = "0.1.0"
-description = "AI agent for automated weekly project report generation"
+description = "Layered agent platform with FastAPI, memory, tools, and reasoning orchestration"
 readme = "README.md"
 requires-python = ">=3.11"
 # 项目运行所必须的依赖
@@ -17,7 +17,9 @@ dependencies = [
     # ---- Database ----
     "sqlalchemy[asyncio]>=2.0.30",
     "aiomysql>=0.2.0",
+    "asyncpg>=0.30.0",
     "alembic>=1.13.0",
+    "psycopg[binary]>=3.2.0",
 
     # ---- Redis ----
     "redis[hiredis]>=5.0.0",

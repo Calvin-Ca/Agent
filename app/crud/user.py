@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
 from app.models.user import User
-from app.schemas.user import UserRegister, UserUpdate
+from app.schema_defs.user import UserRegister, UserUpdate
 
 
 class UserCRUD(CRUDBase[User, UserRegister, UserUpdate]):

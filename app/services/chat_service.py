@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentUser, DBSession
+from app.api_routes.deps import CurrentUser, DBSession
 from app.core.exceptions import BizError, NotFoundError
 from app.core.response import R
 from app.crud.document import document_crud
@@ -21,12 +21,13 @@ from app.crud.report import report_crud
 from app.db import minio
 from app.models.document import Document
 from app.models.progress import Progress
-from app.observability.logger import get_log_context, run_in_executor_with_context
-from app.schemas.chat import ChatResponse
-from app.schemas.progress import ProgressOut
-from app.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
-from app.schemas.report import ReportOut
-from app.schemas.upload import UploadOut
+from agent.core.state import AgentState
+from agent.infra.logger import get_log_context, run_in_executor_with_context
+from app.schema_defs.chat import ChatResponse
+from app.schema_defs.progress import ProgressOut
+from app.schema_defs.project import ProjectCreate, ProjectOut, ProjectUpdate
+from app.schema_defs.report import ReportOut
+from app.schema_defs.upload import UploadOut
 
 _ALLOWED_TYPES = {
     "application/pdf": "pdf",
@@ -50,31 +51,26 @@ _NO_PROJECT_INTENTS = {
 async def handle_chat(
     db: DBSession,
     user: CurrentUser,
-    prompt: str,
+    state: AgentState,
     file: UploadFile | None = None,
 ):
-    """Recognize user intent and execute the matching product action."""
-    from app.agents.graphs.router_graph import recognize_intent
+    """Dispatch to the matching product action using the pre-resolved AgentState.
 
+    Intent recognition is performed upstream by AgentLoop.prepare_state() via
+    IntentRouter, so we read intent/params directly from ``state`` without
+    calling the LLM a second time.
+    """
     started_at = time.perf_counter()
+    intent = state.intent
+    params = state.params
     has_file = file is not None and bool(file.filename)
     logger.info(
-        "[Chat] 收到请求 | user={} prompt='{}' has_file={}",
+        "[Chat] 分派请求 | user={} intent={} params={} has_file={}",
         user.id,
-        prompt[:100],
+        intent,
+        params,
         bool(has_file),
     )
-
-    intent_result = await run_in_executor_with_context(
-        asyncio.get_event_loop(),
-        recognize_intent,
-        prompt,
-        bool(has_file),
-    )
-
-    intent = intent_result["intent"]
-    params = intent_result.get("params", {})
-    logger.info("[Chat] 意图识别 | user={} intent={} params={}", user.id, intent, params)
 
     resolved_project_id = None
     if intent not in _NO_PROJECT_INTENTS:
@@ -398,7 +394,7 @@ async def _handle_export_report(db: DBSession, user: CurrentUser, params: dict):
     if report is None or report.creator_id != user.id:
         raise NotFoundError("周报不存在")
 
-    from app.services.export_service import export_to_docx, export_to_markdown
+    from agent.tools.builtin.file_manager import export_to_docx, export_to_markdown
 
     fmt = params.get("format", "docx")
     if fmt == "md":
@@ -494,11 +490,11 @@ async def _handle_query(
     if project is None or project.owner_id != user.id:
         raise NotFoundError("项目不存在")
 
-    from app.services.progress_service import query_progress_sync
+    from agent.core.react_engine import query_workflow
 
     result = await run_in_executor_with_context(
         asyncio.get_event_loop(),
-        query_progress_sync,
+        query_workflow.run,
         project_id,
         user.id,
         params.get("question", prompt),

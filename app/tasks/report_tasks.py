@@ -8,7 +8,7 @@ from loguru import logger
 
 from app.tasks.celery_app import celery_app
 from app.db.redis import distributed_lock
-from app.observability.logger import request_log_scope
+from agent.infra.logger import request_log_scope
 
 
 @celery_app.task(
@@ -52,8 +52,8 @@ def generate_report_task(
                 if not acquired:
                     return {"success": False, "error": "另一个报告生成任务正在进行中"}
 
-                from app.services.report_service import generate_report_sync
-                return generate_report_sync(project_id, user_id, week_start)
+                from agent.core.react_engine import report_workflow
+                return report_workflow.run_and_save(project_id, user_id, week_start)
 
         loop = asyncio.new_event_loop()
         try:

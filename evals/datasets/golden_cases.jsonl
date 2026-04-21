@@ -1,0 +1,2 @@
+{"id":"health-route","input":"GET /health","expected":"200"}
+{"id":"chat-route","input":"POST /chat","expected":"200-or-auth-error"}

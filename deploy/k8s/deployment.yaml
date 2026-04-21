@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agent-platform
+  template:
+    metadata:
+      labels:
+        app: agent-platform
+    spec:
+      containers:
+        - name: agent-platform
+          image: agent-platform:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: agent-platform-env
