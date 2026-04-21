@@ -1,14 +1,10 @@
-"""P1 integration tests — Auth, Project CRUD, Upload.
-
-Usage:
-    pytest tests/test_api/test_p1.py -v
-    pytest tests/test_api/test_p1.py -v -k auth
-    pytest tests/test_api/test_p1.py -v -k project
-"""
+"""Product-facing API tests — auth + chat only."""
 
 from __future__ import annotations
 
 import io
+from uuid import uuid4
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -102,142 +98,77 @@ class TestAuth:
         assert resp.status_code == 422  # missing header
 
 
-# ══════════════════════════════════════════════════════════════
-# Project CRUD
-# ══════════════════════════════════════════════════════════════
+def _mock_intent(monkeypatch: pytest.MonkeyPatch, intent: str, params: dict | None = None):
+    async def fake_run_in_executor(*_args, **_kwargs):
+        return {"intent": intent, "params": params or {}}
 
-class TestProject:
-
-    async def test_create_project(self, authed_client: AsyncClient):
-        resp = await authed_client.post(f"{V1}/projects", json={
-            "name": "测试项目",
-            "code": "TST-001",
-            "description": "P1集成测试用项目",
-        })
-        data = resp.json()
-        if data["code"] == 0:
-            assert data["data"]["name"] == "测试项目"
-            assert data["data"]["code"] == "TST-001"
-
-    async def test_list_projects(self, authed_client: AsyncClient):
-        resp = await authed_client.get(f"{V1}/projects")
-        data = resp.json()
-        assert data["code"] == 0
-        assert "items" in data["data"]
-        assert isinstance(data["data"]["total"], int)
-
-    async def test_get_project(self, authed_client: AsyncClient):
-        # Create first
-        create_resp = await authed_client.post(f"{V1}/projects", json={
-            "name": "详情测试",
-            "code": "TST-DETAIL",
-        })
-        if create_resp.json()["code"] != 0:
-            pytest.skip("Could not create project (likely duplicate code)")
-
-        pid = create_resp.json()["data"]["id"]
-        resp = await authed_client.get(f"{V1}/projects/{pid}")
-        assert resp.json()["code"] == 0
-        assert resp.json()["data"]["id"] == pid
-
-    async def test_update_project(self, authed_client: AsyncClient):
-        create_resp = await authed_client.post(f"{V1}/projects", json={
-            "name": "更新前",
-            "code": "TST-UPD",
-        })
-        if create_resp.json()["code"] != 0:
-            pytest.skip("Could not create project")
-
-        pid = create_resp.json()["data"]["id"]
-        resp = await authed_client.put(f"{V1}/projects/{pid}", json={
-            "name": "更新后",
-            "description": "已更新描述",
-        })
-        assert resp.json()["code"] == 0
-        assert resp.json()["data"]["name"] == "更新后"
-
-    async def test_delete_project(self, authed_client: AsyncClient):
-        create_resp = await authed_client.post(f"{V1}/projects", json={
-            "name": "待删除",
-            "code": "TST-DEL",
-        })
-        if create_resp.json()["code"] != 0:
-            pytest.skip("Could not create project")
-
-        pid = create_resp.json()["data"]["id"]
-        resp = await authed_client.delete(f"{V1}/projects/{pid}")
-        assert resp.json()["code"] == 0
-
-        # Verify soft-deleted
-        resp = await authed_client.get(f"{V1}/projects/{pid}")
-        assert resp.json()["code"] == 40400  # not found
-
-    async def test_project_not_found(self, authed_client: AsyncClient):
-        resp = await authed_client.get(f"{V1}/projects/nonexistent_id")
-        assert resp.json()["code"] == 40400
+    monkeypatch.setattr(
+        "app.services.chat_service.run_in_executor_with_context",
+        fake_run_in_executor,
+    )
 
 
-# ══════════════════════════════════════════════════════════════
-# Upload
-# ══════════════════════════════════════════════════════════════
+class TestChat:
 
-class TestUpload:
+    async def test_create_project_via_chat(self, authed_client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+        project_name = f"聊天创建项目-{uuid4().hex[:8]}"
+        _mock_intent(
+            monkeypatch,
+            "create_project",
+            {"name": project_name, "code": f"CHAT-{uuid4().hex[:6]}"},
+        )
 
-    async def test_upload_text_file(self, authed_client: AsyncClient):
-        # Create project first
-        proj_resp = await authed_client.post(f"{V1}/projects", json={
-            "name": "上传测试项目",
-            "code": "TST-UPLOAD",
-        })
-        if proj_resp.json()["code"] != 0:
-            # Use existing project
-            list_resp = await authed_client.get(f"{V1}/projects?page_size=1")
-            items = list_resp.json()["data"]["items"]
-            if not items:
-                pytest.skip("No project available for upload test")
-            pid = items[0]["id"]
-        else:
-            pid = proj_resp.json()["data"]["id"]
-
-        file_content = "这是一份测试文本文件\n包含中文内容".encode("utf-8")
         resp = await authed_client.post(
-            f"{V1}/upload",
-            data={"project_id": pid},
-            files={"file": ("test.txt", io.BytesIO(file_content), "text/plain")},
+            f"{V1}/chat",
+            data={"prompt": f"创建项目 {project_name}"},
         )
         data = resp.json()
         assert data["code"] == 0
-        assert data["data"]["file_type"] == "text"
-        assert data["data"]["process_status"] == 0  # pending
+        assert data["data"]["intent"] == "create_project"
+        assert data["data"]["data"]["name"] == project_name
 
-    async def test_upload_unsupported_type(self, authed_client: AsyncClient):
-        list_resp = await authed_client.get(f"{V1}/projects?page_size=1")
-        items = list_resp.json()["data"]["items"]
-        if not items:
-            pytest.skip("No project available")
-        pid = items[0]["id"]
+    async def test_list_projects_via_chat(self, authed_client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+        _mock_intent(monkeypatch, "list_projects")
 
         resp = await authed_client.post(
-            f"{V1}/upload",
-            data={"project_id": pid},
-            files={"file": ("test.exe", io.BytesIO(b"binary"), "application/octet-stream")},
+            f"{V1}/chat",
+            data={"prompt": "查看我的项目"},
         )
-        assert resp.json()["code"] == 40010
+        data = resp.json()
+        assert data["code"] == 0
+        assert data["data"]["intent"] == "list_projects"
+        assert isinstance(data["data"]["data"], list)
 
-    async def test_upload_dedup(self, authed_client: AsyncClient):
-        """Same file uploaded twice should be deduped."""
-        list_resp = await authed_client.get(f"{V1}/projects?page_size=1")
-        items = list_resp.json()["data"]["items"]
-        if not items:
-            pytest.skip("No project available")
-        pid = items[0]["id"]
+    async def test_upload_rejects_unsupported_type_via_chat(
+        self,
+        authed_client: AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        project_name = f"上传测试项目-{uuid4().hex[:8]}"
+        create_code = f"UP-{uuid4().hex[:6]}"
 
-        content = b"dedup test content 12345"
-        for _ in range(2):
-            resp = await authed_client.post(
-                f"{V1}/upload",
-                data={"project_id": pid},
-                files={"file": ("dedup.txt", io.BytesIO(content), "text/plain")},
-            )
-        # Second upload should say "already exists"
-        assert "已存在" in resp.json().get("message", "")
+        _mock_intent(
+            monkeypatch,
+            "create_project",
+            {"name": project_name, "code": create_code},
+        )
+        create_resp = await authed_client.post(
+            f"{V1}/chat",
+            data={"prompt": f"创建项目 {project_name}"},
+        )
+        assert create_resp.json()["code"] == 0
+
+        _mock_intent(
+            monkeypatch,
+            "upload_file",
+            {"project_name": project_name},
+        )
+        resp = await authed_client.post(
+            f"{V1}/chat",
+            data={"prompt": f"把文件上传到项目 {project_name}"},
+            files={"file": ("bad.exe", io.BytesIO(b"binary"), "application/octet-stream")},
+        )
+        data = resp.json()
+        assert data["code"] == 0
+        assert data["data"]["intent"] == "upload_file"
+        assert "不支持的文件类型" in data["data"]["message"]

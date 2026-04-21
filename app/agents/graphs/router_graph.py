@@ -28,7 +28,7 @@ def recognize_intent(
     has_file: bool = False,
 ) -> dict:
     """Use LLM to recognize user intent and extract parameters.
-
+       先让大模型判断用户意图；如果失败，就退回到关键词规则识别
     Returns:
         {"intent": str, "params": dict}
         params may contain "project_name" (extracted from user input).

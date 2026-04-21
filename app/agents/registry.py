@@ -46,8 +46,10 @@ def auto_discover_agents() -> None:
     """Register all built-in agent workflows. Called at app startup."""
     from app.agents.graphs.report_graph import report_workflow
     from app.agents.graphs.query_graph import query_workflow
+    from app.agents.graphs.supervisor import supervisor_workflow
 
     agent_registry.register("report", report_workflow)
     agent_registry.register("query", query_workflow)
+    agent_registry.register("supervisor", supervisor_workflow)
 
     logger.info("Agent registry: {} agents registered", len(agent_registry.list_agents()))

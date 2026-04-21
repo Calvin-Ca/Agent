@@ -1,4 +1,4 @@
-"""V1 API router — aggregates all sub-routers."""
+"""Product-facing V1 API router."""
 
 from fastapi import APIRouter
 

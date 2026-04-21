@@ -7,6 +7,7 @@ import time
 from loguru import logger
 
 from app.config import get_settings
+from app.agents.callbacks.metrics import record_llm_call
 
 
 def llm_generate(
@@ -87,13 +88,20 @@ def _generate_via_api(
 
     # Extract token usage if available
     usage = data.get("usage", {})
-    prompt_tokens = usage.get("prompt_tokens", "-")
-    completion_tokens = usage.get("completion_tokens", "-")
+    prompt_tokens = usage.get("prompt_tokens", 0)
+    completion_tokens = usage.get("completion_tokens", 0)
     total_tokens = usage.get("total_tokens", "-")
 
     logger.info(
         "[LLM] done | {:.0f}ms | tokens: in={} out={} total={} | output_chars={}",
         elapsed_ms, prompt_tokens, completion_tokens, total_tokens, len(response),
+    )
+
+    record_llm_call(
+        backend="vllm",
+        elapsed_seconds=elapsed_ms / 1000,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
     )
 
     return response
@@ -148,12 +156,19 @@ def _generate_via_ollama(
     response = data.get("message", {}).get("content", "").strip()
 
     # Ollama returns eval_count / prompt_eval_count
-    prompt_tokens = data.get("prompt_eval_count", "-")
-    completion_tokens = data.get("eval_count", "-")
+    prompt_tokens = data.get("prompt_eval_count", 0)
+    completion_tokens = data.get("eval_count", 0)
 
     logger.info(
         "[LLM] done | {:.0f}ms | tokens: in={} out={} | output_chars={}",
         elapsed_ms, prompt_tokens, completion_tokens, len(response),
+    )
+
+    record_llm_call(
+        backend="ollama",
+        elapsed_seconds=elapsed_ms / 1000,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
     )
 
     return response

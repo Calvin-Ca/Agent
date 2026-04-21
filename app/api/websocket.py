@@ -15,9 +15,11 @@ Usage (JS client):
     }));
     ws.onmessage = (e) => {
         const data = JSON.parse(e.data);
-        if (data.type === "token") console.log(data.content);
-        if (data.type === "done") ws.close();
-        if (data.type === "error") console.error(data.content);
+        if (data.type === "node_start") console.log("▶", data.node);
+        if (data.type === "node_end")   console.log("✓", data.node, data.elapsed_ms + "ms");
+        if (data.type === "token")      appendToReport(data.content);
+        if (data.type === "done")       ws.close();
+        if (data.type === "error")      console.error(data.content);
     };
 """
 
@@ -32,13 +34,27 @@ from loguru import logger
 from app.core.security import decode_access_token
 from app.crud.user import user_crud
 from app.db.mysql import get_session_factory
+from app.agents.callbacks.streaming import set_stream_queue, reset_stream_queue
 
 router = APIRouter()
+
+# Sentinel pushed to queue when generation is complete
+_DONE_SENTINEL = object()
 
 
 @router.websocket("/ws/report")
 async def ws_report_stream(ws: WebSocket):
-    """Stream report generation via WebSocket."""
+    """Stream report generation via WebSocket.
+
+    Emits structured events:
+        {"type": "status",     "content": "..."}
+        {"type": "node_start", "node": "...", "task_type": "..."}
+        {"type": "node_end",   "node": "...", "elapsed_ms": 123}
+        {"type": "node_error", "node": "...", "error": "...", "elapsed_ms": 123}
+        {"type": "token",      "content": "..."}
+        {"type": "done",       "report_id": "...", "title": "..."}
+        {"type": "error",      "content": "..."}
+    """
     await ws.accept()
 
     try:
@@ -56,7 +72,7 @@ async def ws_report_stream(ws: WebSocket):
 
         # 2. Verify token
         try:
-            payload = decode_access_token(token) # token 解码后的字典（dict）
+            payload = decode_access_token(token)
             user_id = payload.get("sub", "")
         except Exception:
             await _send(ws, "error", "token 无效或已过期")
@@ -64,7 +80,7 @@ async def ws_report_stream(ws: WebSocket):
             return
 
         # 3. Verify user exists
-        factory = get_session_factory()     # 创建数据库会话
+        factory = get_session_factory()
         async with factory() as db:
             user = await user_crud.get(db, id=user_id)
             if user is None:
@@ -72,26 +88,65 @@ async def ws_report_stream(ws: WebSocket):
                 await ws.close()
                 return
 
-        await _send(ws, "status", "开始生成周报...")  # 给前端发一条状态消息
+        await _send(ws, "status", "开始生成周报...")
 
-        # 4. Run report generation in background thread
+        # 4. Create stream queue and bind to context
+        queue: asyncio.Queue = asyncio.Queue(maxsize=512)
+        token_ctx = set_stream_queue(queue)
+
         from app.services.report_service import generate_report_sync
+        from app.observability.logger import run_in_executor_with_context
 
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, generate_report_sync, project_id, user_id, "",
-        )
 
-        if result["success"]:
-            # Stream content in chunks (simulate token-by-token)
-            content = result["content"]
-            chunk_size = 50  # chars per chunk
+        # Run report generation in executor — node events flow into queue
+        async def _run_generation():
+            try:
+                result = await run_in_executor_with_context(
+                    loop, generate_report_sync, project_id, user_id, "",
+                )
+                return result
+            finally:
+                # Signal stream consumer that generation is done
+                await queue.put(_DONE_SENTINEL)
+
+        gen_task = asyncio.create_task(_run_generation())
+
+        # 5. Forward stream events to WebSocket while generation runs
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=180)
+            except asyncio.TimeoutError:
+                await _send(ws, "error", "生成超时")
+                gen_task.cancel()
+                break
+
+            if event is _DONE_SENTINEL:
+                break
+
+            # Forward event directly (it's already a typed dict)
+            if isinstance(event, dict):
+                await ws.send_text(json.dumps(event, ensure_ascii=False))
+
+        # 6. Await generation result and send final done/error
+        try:
+            result = await gen_task
+        except Exception as e:
+            logger.error("Report generation failed: {}", e)
+            await _send(ws, "error", str(e))
+            return
+
+        if result.get("success"):
+            # Stream content in chunks for token-by-token effect
+            content = result.get("content", "")
+            chunk_size = 50
             for i in range(0, len(content), chunk_size):
                 chunk = content[i:i + chunk_size]
                 await _send(ws, "token", chunk)
-                await asyncio.sleep(0.02)  # small delay for streaming effect
+                await asyncio.sleep(0.02)
 
-            await _send(ws, "done", json.dumps({
+            await ws.send_text(json.dumps({
+                "type": "done",
                 "report_id": result.get("report_id", ""),
                 "title": result.get("title", ""),
             }))
@@ -109,6 +164,8 @@ async def ws_report_stream(ws: WebSocket):
         except Exception:
             pass
     finally:
+        if "token_ctx" in locals():
+            reset_stream_queue(token_ctx)
         try:
             await ws.close()
         except Exception:

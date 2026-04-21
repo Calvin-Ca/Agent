@@ -21,6 +21,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.middleware import register_middleware
 from app.core.response import R
 from app.observability.logger import setup_logging
+from app.observability.metrics import make_metrics_app
 from app.db.milvus import connect_milvus, disconnect_milvus
 from app.db.mysql import close_mysql, get_session_factory
 from app.db.redis import close_redis, get_redis
@@ -105,6 +106,12 @@ def create_app() -> FastAPI:
     from app.api.websocket import router as ws_router
     app.include_router(ws_router)
 
+    # ── Prometheus metrics ────────────────────────────────────
+    metrics_asgi = make_metrics_app()
+    if metrics_asgi:
+        app.mount("/metrics", metrics_asgi)
+        logger.info("Prometheus /metrics endpoint enabled")
+
     return app
 
 
@@ -113,4 +120,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True) #启动事件循环

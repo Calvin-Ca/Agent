@@ -66,3 +66,9 @@ class AgentState(TypedDict, total=False):
     error: str
     retry_count: int
     done: bool
+
+    # ── Metadata (enterprise extensions) ────────────────────────
+    request_id: str          # Unique execution request ID
+    tenant_id: str           # Multi-tenant isolation
+    session_id: str          # Conversation session ID (for multi-turn)
+    parent_request_id: str   # Parent request ID (for supervisor delegation)
