@@ -14,13 +14,13 @@ from agent.core.errors import (
     ToolExecutionError,
     WorkflowTimeoutError,
 )
-from agent.core.nodes import (
+from agent.planning.nodes import (
     data_collector_node,
     progress_query_node,
     report_reviewer_node,
     report_writer_node,
 )
-from agent.core.planner import BasePlanner, DefaultPlanner, ExecutionPlan, PlanStep, TaskPlanner, planner_node
+from agent.planning.planner import BasePlanner, DefaultPlanner, ExecutionPlan, PlanStep, TaskPlanner, planner_node
 from agent.core.react_engine import (
     QueryWorkflow,
     ReActEngine,
@@ -28,9 +28,9 @@ from agent.core.react_engine import (
     query_workflow,
     report_workflow,
 )
-from agent.core.registry import AgentRegistry, agent_registry, auto_discover_agents
+from agent.planning.registry import AgentRegistry, agent_registry, auto_discover_agents
 from agent.core.state import AgentState, WorkflowState
-from agent.core.supervisor import SupervisorState, SupervisorWorkflow, supervisor_workflow
+from agent.planning.supervisor import SupervisorState, SupervisorWorkflow, supervisor_workflow
 
 
 def __getattr__(name: str):

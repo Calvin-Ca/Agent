@@ -1,21 +1,17 @@
-"""Prompt helpers for planning and intent recognition."""
+"""Prompt helpers for planning and intent recognition — loaded from .j2 templates."""
 
 from __future__ import annotations
 
-PLANNER_PROMPT = """\
-Break the user request into the smallest reliable execution steps.
-Prefer tool use over unsupported claims, and keep the plan executable.
-"""
+from agent.prompts.loader import load, render
 
-INTENT_PROMPT = """用户输入：{user_input}
-是否附带文件：{has_file}
-
-请识别意图并提取参数。注意：请从用户输入中提取项目名称（project_name），而非项目ID。"""
+PLANNER_PROMPT = load("planner.j2")
+INTENT_PROMPT = None  # Template-based; use build_intent_prompt() instead.
 
 
 def build_intent_prompt(user_input: str, has_file: bool) -> str:
     """Build the prompt used for intent recognition."""
-    return INTENT_PROMPT.format(
+    return render(
+        "intent.j2",
         user_input=user_input,
         has_file="是" if has_file else "否",
     )

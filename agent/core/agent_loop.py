@@ -10,9 +10,9 @@ from fastapi import UploadFile
 from agent.input.guardrails import Guardrails
 from agent.input.intent_router import IntentRouter
 from agent.input.preprocessor import MessagePreprocessor
-from agent.core.planner import TaskPlanner
+from agent.planning.planner import TaskPlanner
 from agent.core.react_engine import ReActEngine
-from agent.core.reflector import Reflector
+from agent.planning.reflector import Reflector
 from agent.core.state import AgentState
 from agent.output.formatter import ResponseFormatter
 from agent.output.output_guard import OutputGuard

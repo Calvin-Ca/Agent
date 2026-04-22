@@ -1,7 +1,6 @@
-"""Workflow implementations — query and report generation."""
+"""Backward-compatible re-exports — canonical module is agent.workflows."""
 
-from agent.core.workflows.query_workflow import QueryWorkflow, query_workflow
-from agent.core.workflows.report_workflow import ReportWorkflow, report_workflow
+from agent.workflows import QueryWorkflow, ReportWorkflow, query_workflow, report_workflow  # noqa: F401
 
 __all__ = [
     "QueryWorkflow",
