@@ -1,11 +1,10 @@
 """Shared FastAPI dependencies — injected via Depends().
 
 Usage in routes:
-    @router.get("/projects")
-    async def list_projects(
-        db: AsyncSession = Depends(get_db),
-        user: User = Depends(get_current_user),
-        paging: PagingParams = Depends(),
+    @router.post("/stream")
+    async def stream(
+        db: DBSession,
+        user: CurrentUser,
     ):
         ...
 """
@@ -15,7 +14,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, Header, Query
+from fastapi import Depends, Header
 from fastapi.security import OAuth2PasswordBearer
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,21 +32,18 @@ from app.models.user import User
 get_db = _get_db
 DBSession = Annotated[AsyncSession, Depends(_get_db)]
 
-# ── ⭐ Swagger 认证入口（关键新增） ──────────────────────────
-
+# ── Swagger OAuth2 入口 ─────────────────────────────────────
 
 from app.config import get_settings
 settings = get_settings()
-# 存储 tokenUrl，用于生成 /docs 的 OpenAPI schema（让 Swagger UI 知道 Authorize 按钮往哪发请求）
-# 作为依赖函数，每次请求进来时从 Authorization: Bearer xxx 头里提取 token 字符串
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/token") 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/token")
 
 # ── Authentication ───────────────────────────────────────────
 
-# 任何用了 CurrentUser 的路由 每次请求进来都会调用
+
 async def get_current_user(
     db: DBSession,
-     token: str = Depends(oauth2_scheme),   # ⭐ FastAPI 提供的依赖注入机制
+    token: str = Depends(oauth2_scheme),
 ) -> User:
     """Extract and validate JWT from Authorization header."""
 
@@ -104,21 +100,3 @@ async def require_admin(user: CurrentUser) -> User:
 
 
 AdminUser = Annotated[User, Depends(require_admin)]
-
-
-# ── Pagination ───────────────────────────────────────────────
-
-
-class PagingParams:
-    """Common pagination query parameters."""
-
-    def __init__(
-        self,
-        page: int = Query(default=1, ge=1, description="Page number"),
-        page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
-    ):
-        self.page = page
-        self.page_size = page_size
-
-
-Paging = Annotated[PagingParams, Depends()]

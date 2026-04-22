@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import lru_cache
+from dataclasses import dataclass # 用来方便地定义“只装数据的类”
+from functools import lru_cache   # 用来缓存函数结果，避免重复创建对象
 
-from app.api_routes.deps import (  # Re-export legacy FastAPI dependencies.
+# 把 app.api_routes.deps 里已经有的依赖，再从这里统一导出来。这样别的文件以后可以直接写：
+# from app.dependencies import CurrentUser, DBSession
+from app.api_routes.deps import (
     AdminUser,
     CurrentUser,
     DBSession,
     OptionalUser,
-    Paging,
-    PagingParams,
     get_current_user,
     get_db,
     get_optional_user,
@@ -27,9 +27,9 @@ from agent.output.streaming import ResponseStreamer
 class AppContainer:
     """Lightweight service container for the application layer."""
 
-    settings: AppSettings
+    settings: AppSettings  # 项目配置
     agent_loop: AgentLoop
-    streamer: ResponseStreamer
+    streamer: ResponseStreamer # 流式输出器
 
 
 def build_container() -> AppContainer:
@@ -56,8 +56,6 @@ __all__ = [
     "CurrentUser",
     "DBSession",
     "OptionalUser",
-    "Paging",
-    "PagingParams",
     "build_container",
     "get_container",
     "get_current_user",

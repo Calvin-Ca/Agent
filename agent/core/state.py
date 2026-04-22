@@ -43,6 +43,7 @@ class AgentState:
 
     user_id: str
     message: UnifiedMessage
+    user_input: str
     intent: str
     params: dict[str, Any] = field(default_factory=dict)
     plan: list[Any] = field(default_factory=list)

@@ -10,7 +10,8 @@
       "Bash(grep:*)",
       "Bash(wc:*)",
       "Bash(which python:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(git mv:*)"
     ]
   }
 }

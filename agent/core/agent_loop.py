@@ -49,18 +49,19 @@ class AgentLoop:
         file: UploadFile | None,
         user_id: str,
     ) -> AgentState:
-        message = self.preprocessor.normalize(prompt=prompt, file=file)
-        message = self.guardrails.validate(message)
+        message = self.preprocessor.normalize(prompt=prompt, file=file) # 把原始输入整理成统一的消息对象
+        message = self.guardrails.validate(message)   # 对消息做校验或安全检查
         routed = await self.intent_router.route(message)
-        state = AgentState(
+        state = AgentState(               # 根据意图路由生成状态
             user_id=user_id,
             message=message,
+            user_input=message.content,
             intent=routed.intent,
             params=routed.params,
             metadata={"confidence": routed.confidence},
         )
-        plan = self.planner.build(state)
-        return await self.react_engine.run(state, plan)
+        plan = self.planner.build(state)  # 根据当前状态生成执行计划
+        return await self.react_engine.run(state, plan)  # 按计划进一步运行推理/执行逻辑，并返回更新后的 state
 
     async def handle_chat(
         self,
@@ -84,7 +85,7 @@ class AgentLoop:
                 file=file,
             )
         except Exception as exc:
-            state.reflections = self.reflector.reflect(state, error=exc)
+            state.reflections = self.reflector.reflect(state, error=exc) # 记录反思/错误信息，然后继续把异常抛出去，不吞掉错误
             raise
 
         formatted = self.formatter.format(result=result, state=state)

@@ -9,9 +9,8 @@ import uvicorn
 from fastapi import FastAPI
 from loguru import logger
 
-from app.api import router as api_router
+from app.platform import router as platform_router
 from app.api_routes.v1.router import v1_router
-from app.api_routes.websocket import router as ws_router
 from app.dependencies import get_container
 from app.core.exceptions import register_exception_handlers
 from app.core.middleware import register_middleware
@@ -93,9 +92,8 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     register_middleware(app)
 
-    app.include_router(api_router)
+    app.include_router(platform_router)
     app.include_router(v1_router, prefix=settings.api_v1_prefix)
-    app.include_router(ws_router)
 
     metrics_asgi = make_metrics_app()
     if metrics_asgi:
