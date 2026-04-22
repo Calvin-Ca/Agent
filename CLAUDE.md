@@ -38,9 +38,9 @@ pytest tests/ -k "test_name" -v
 
 ## Architecture
 
-### Two Core Workflows (LangGraph state machines in `app/agents/`)
+### Two Core Workflows (LangGraph state machines in `agent/core/workflows/`)
 
-**1. Report Generation** (`/api/v1/reports/generate`):
+**1. Report Generation** (`POST /api/v1/reports/generate` or via chat):
 ```
 Planner → DataCollector → ReportWriter → ReportReviewer → MySQL/MinIO export
 ```
@@ -48,7 +48,7 @@ Planner → DataCollector → ReportWriter → ReportReviewer → MySQL/MinIO ex
 - ReportReviewer can trigger rewrites (self-review loop)
 - Output: Markdown stored in MySQL, exported to DOCX/PDF via MinIO
 
-**2. Natural Language Query** (`/api/v1/progress/query`):
+**2. Natural Language Query** (`POST /api/v1/chat` with query intent):
 ```
 Planner → DataCollector → ProgressQuery → answer
 ```
@@ -57,20 +57,34 @@ Planner → DataCollector → ProgressQuery → answer
 
 | Layer | Location | Responsibility |
 |---|---|---|
-| API routes | `app/api/v1/` | HTTP endpoints, request validation |
-| Agent workflows | `app/agents/` | LangGraph state machines, prompt templates |
-| Business logic | `app/services/` | Domain operations |
+| API routes | `app/api_routes/v1/` | HTTP endpoints (auth, chat, projects, progress, reports, documents) |
+| Services | `app/services/` | Business logic split by domain (project, progress, report, document, query) |
+| Agent workflows | `agent/core/workflows/` | LangGraph state machines (query + report) |
+| Shared nodes | `agent/core/nodes.py` | Workflow nodes: data_collector, writer, reviewer, query |
 | Data access | `app/crud/` | SQLAlchemy repository pattern |
-| Model services | `app/model_service/` | LLM/embedding/VLM abstraction (local/API/Ollama backends) |
-| Data pipelines | `app/pipeline/` | PDF/image OCR → chunk → embed → Milvus |
-| Async tasks | `app/tasks/` | Celery document processing queue |
-| DB connections | `app/db/` | MySQL (aiomysql), Redis, Milvus clients |
+| LLM backends | `agent/llm/` | LLM/embedding/VLM abstraction (vLLM/Ollama/OpenAI/Anthropic) |
+| Memory system | `agent/memory/` | Working, cache, long-term (Milvus), structured (MySQL) |
+| Tool system | `agent/tools/` | Registry + executor + builtin tools (db_query, file_manager) |
+| Input processing | `agent/input/` | PDF/image extraction, intent routing, guardrails |
+| Async tasks | `app/tasks/` | Celery document processing and report generation |
+| DB connections | `app/db/` | MySQL (aiomysql), Redis, Milvus, MinIO clients |
+| Infrastructure | `agent/infra/` | Config, metrics, tracing, logging, middleware |
 
-### Model Backend Registry (`app/model_service/registry.py`)
+### API Endpoints
+
+Two styles of API access:
+- **Chat endpoint** (`POST /api/v1/chat`): Natural language → intent recognition → dispatch
+- **RESTful endpoints**: Direct CRUD without NL parsing
+  - `/api/v1/projects` — Project CRUD
+  - `/api/v1/progress` — Progress record/list
+  - `/api/v1/reports` — Report generate/list/get/export
+  - `/api/v1/documents` — Document upload
+
+### Model Backend Registry (`agent/llm/registry.py`)
 Three interchangeable backends configured via `.env`:
-- `local` — direct transformers loading
-- `api` — vLLM/TGI OpenAI-compatible endpoint (production)
+- `vllm` — vLLM OpenAI-compatible endpoint (production)
 - `ollama` — HTTP inference (flexible CPU/GPU)
+- `openai` / `anthropic` — cloud API fallbacks
 
 ### Database Roles
 - **MySQL**: structured data — Users, Projects, Reports, Progress, Documents
@@ -80,15 +94,15 @@ Three interchangeable backends configured via `.env`:
 
 ## Configuration
 
-Settings are loaded from `.env` via `app/config.py` (Pydantic Settings). Key env groups:
+Settings are loaded from `.env` via `agent/infra/config.py` (Pydantic Settings), re-exported through `app/config.py`. Key env groups:
 - `MYSQL_*`, `REDIS_*`, `MILVUS_*`, `MINIO_*` — service connections
-- `LLM_BACKEND`, `LLM_API_BASE`, `OLLAMA_*` — model backend selection
-- `EMBED_MODEL_PATH`, `EMBED_BACKEND` — embedding model
+- `BACKEND`, `LLM_API_BASE`, `OLLAMA_*` — model backend selection
+- `EMBED_API_BASE`, `EMBED_MODEL_NAME` — embedding model
 - `JWT_*` — authentication
 
 ## Tech Stack
 
-- Python 3.11+, FastAPI 0.115, SQLAlchemy async (aiomysql)
+- Python 3.10+, FastAPI 0.115, SQLAlchemy async (aiomysql)
 - LangChain + LangGraph for agent orchestration
 - Milvus 2.4, Redis 5, Celery
 - PyMuPDF + pdfplumber (PDF), PaddleOCR (images)

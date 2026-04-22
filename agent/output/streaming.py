@@ -7,12 +7,13 @@ import functools
 import json
 import time
 from contextvars import ContextVar, Token
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import UploadFile
 from loguru import logger
 
-from agent.core.agent_loop import AgentLoop
+if TYPE_CHECKING:
+    from agent.core.agent_loop import AgentLoop
 
 
 def sse_event(event: str, data: Any) -> str:
