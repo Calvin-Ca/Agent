@@ -51,5 +51,7 @@ logs/
 # Models (large files, download locally)
 models/
 !models/README.md
+!app/models/
+!app/models/*.py
 calvin.session.sql
 environment.yml

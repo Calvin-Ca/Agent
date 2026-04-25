@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -129,6 +130,18 @@ class AppSettings(BaseSettings):
 
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def _normalize_debug(cls, value: object) -> object:
+        """Accept common environment-style debug values."""
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on", "debug", "development"}:
+                return True
+            if normalized in {"0", "false", "no", "off", "release", "prod", "production"}:
+                return False
+        return value
 
     @property
     def upload_dir(self) -> Path:
